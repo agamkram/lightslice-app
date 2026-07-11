@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#0a0e14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="LightSlice" />
+  <meta
+    name="description"
+    content="Camera spectral band filter — slide a visible band and see only that slice of light, placed on the full EM spectrum."
+  />
+  <title>LightSlice</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="apple-touch-icon.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --surface: #121a24;
+      --surface-2: #1a2533;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3d9cf5;
+      --accent-glow: rgba(61, 156, 245, 0.22);
+      --scrub: #facc15;
+      --live: #4ade80;
+      --danger: #f87171;
+      --border: rgba(255, 255, 255, 0.08);
+      --app-gap: clamp(0.3rem, 1vmin, 0.5rem);
+      --text-title: clamp(1.05rem, 3.2vmin, 1.35rem);
+      --text-ui: clamp(0.62rem, 1.55vmin, 0.72rem);
+      --text-value: clamp(0.85rem, 2.2vmin, 1.05rem);
+      --text-label: clamp(0.55rem, 1.35vmin, 0.65rem);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background: var(--bg);
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    body {
+      height: 100%;
+      height: 100dvh;
+      min-height: 100dvh;
+      overflow: hidden;
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .fit-stage {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding:
+        max(0.2rem, env(safe-area-inset-top))
+        max(0.35rem, env(safe-area-inset-right))
+        max(0.2rem, env(safe-area-inset-bottom))
+        max(0.35rem, env(safe-area-inset-left));
+    }
+
+    .fit-stage.fit-stage--fluid {
+      align-items: stretch;
+      justify-content: stretch;
+    }
+
+    .fit-stage.fit-stage--fluid .app {
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+    }
+
+    .app {
+      position: relative;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      width: 720px;
+      height: min(920px, 100%);
+      max-height: 100%;
+      padding: 0.45rem 0.5rem 0.5rem;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+      gap: var(--app-gap);
+      transform: scale(1);
+      transform-origin: center center;
+      will-change: transform;
+      background: radial-gradient(120% 80% at 50% 0%, #121a28 0%, var(--bg) 55%);
+      border-radius: 14px;
+    }
+
+    .app:not(.is-fitted) {
+      opacity: 0;
+    }
+    .app.is-fitted {
+      opacity: 1;
+      transition: opacity 0.12s ease;
+    }
+
+    header.top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      min-height: 2.1rem;
+    }
+
+    .brand h1 {
+      font-size: var(--text-title);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      line-height: 1.1;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: var(--text-ui);
+      color: var(--muted);
+      padding: 0.28rem 0.55rem;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .status::before {
+      content: "";
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .status[data-state="live"] {
+      color: var(--live);
+      border-color: rgba(74, 222, 128, 0.25);
+    }
+
+    .status[data-state="live"]::before {
+      background: var(--live);
+      box-shadow: 0 0 8px rgba(74, 222, 128, 0.7);
+    }
+
+    .status[data-state="err"] {
+      color: var(--danger);
+    }
+
+    .status[data-state="err"]::before {
+      background: var(--danger);
+    }
+
+    .readouts {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.35rem;
+    }
+
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.35rem 0.55rem;
+      min-width: 0;
+    }
+
+    .stat-label {
+      font-size: var(--text-label);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: var(--text-value);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      margin-top: 0.1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stat-value.swatch {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .swatch-chip {
+      width: 0.85rem;
+      height: 0.85rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      flex-shrink: 0;
+      background: #888;
+    }
+
+    .preview-wrap {
+      position: relative;
+      min-height: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #000;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .preview-wrap video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .preview-wrap video.mirror {
+      transform: scaleX(-1);
+    }
+
+    .preview-wrap #view {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      background: #000;
+      z-index: 2;
+      opacity: 1;
+    }
+
+    .spectrum-block {
+      display: grid;
+      gap: 0.3rem;
+      flex-shrink: 0;
+    }
+
+    .spectrum-row {
+      display: grid;
+      gap: 0.15rem;
+    }
+
+    .spectrum-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: var(--text-label);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0 0.1rem;
+    }
+
+    .spectrum-label strong {
+      color: var(--text);
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: var(--text-ui);
+    }
+
+    .spectrum-track {
+      position: relative;
+      height: 1.55rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: #060a10;
+    }
+
+    .spectrum-track.em {
+      height: 1.85rem;
+    }
+
+    .spectrum-track.vis {
+      height: 2.35rem;
+      touch-action: none;
+      cursor: ew-resize;
+    }
+
+    .spectrum-track canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+    }
+
+    #vis-hit {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      touch-action: none;
+      cursor: ew-resize;
+    }
+
+    .hint {
+      font-size: var(--text-ui);
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.35;
+      min-height: 1.35em;
+      padding: 0 0.25rem;
+    }
+
+    .hint .hint-white {
+      color: var(--scrub);
+      font-weight: inherit;
+    }
+
+    .controls {
+      display: grid;
+      gap: 0.4rem;
+      padding: 0.45rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: inherit;
+      font-size: var(--text-ui);
+      font-weight: 600;
+      padding: 0.45rem 0.7rem;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s;
+      white-space: nowrap;
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn:not(:disabled):active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: transparent;
+      color: #061018;
+      box-shadow: 0 0 0 1px rgba(61, 156, 245, 0.3), 0 0 18px var(--accent-glow);
+    }
+
+    .btn-primary[data-state="on"] {
+      background: #243044;
+      color: var(--danger);
+      border-color: rgba(248, 113, 113, 0.35);
+      box-shadow: none;
+    }
+
+    .btn:not(.btn-primary)[data-on="1"],
+    .btn:not(.btn-primary)[aria-pressed="true"] {
+      background: rgba(61, 156, 245, 0.22);
+      border-color: rgba(61, 156, 245, 0.6);
+      color: #9ec9f8;
+      box-shadow: 0 0 0 1px rgba(61, 156, 245, 0.25), 0 0 14px var(--accent-glow);
+    }
+
+    .row.modes-presets {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem 0.5rem;
+    }
+
+    .row.modes-presets .modes,
+    .row.modes-presets .presets {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .row.modes-presets .presets {
+      margin-left: auto;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      font-weight: 500;
+      padding: 0.35rem 0.55rem;
+      color: var(--muted);
+    }
+
+    .btn-ghost:not(:disabled):hover {
+      color: var(--text);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .controls.is-idle .btn:not(.btn-primary) {
+      pointer-events: none;
+    }
+
+    .controls.is-idle .btn:not(.btn-primary)[data-on="1"],
+    .controls.is-idle .btn:not(.btn-primary)[aria-pressed="true"] {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--muted);
+      box-shadow: none;
+    }
+
+    /* Band strip stays usable while idle so user can set band before Start */
+    .spectrum-track.vis {
+      pointer-events: auto;
+    }
+
+    @media (max-width: 767px) {
+      .fit-stage,
+      .fit-stage.fit-stage--fluid {
+        position: fixed;
+        inset: 0;
+        align-items: stretch;
+        justify-content: stretch;
+        width: auto;
+        height: auto;
+        padding:
+          max(0.12rem, env(safe-area-inset-top, 0px))
+          max(0.3rem, env(safe-area-inset-right, 0px))
+          max(0.12rem, env(safe-area-inset-bottom, 0px))
+          max(0.3rem, env(safe-area-inset-left, 0px));
+      }
+
+      .app {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+        border-radius: 0;
+        padding: 0.28rem 0.38rem 0.2rem;
+        gap: 0.25rem;
+        display: flex;
+        flex-direction: column;
+        transform: none !important;
+        will-change: auto;
+      }
+
+      .app > header.top,
+      .app > .readouts,
+      .app > .spectrum-block,
+      .app > .hint,
+      .app > .controls {
+        flex: 0 0 auto;
+      }
+
+      .app > .preview-wrap {
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+
+      .app > .controls {
+        padding: 0.36rem;
+      }
+
+      .hint {
+        min-height: 1.1em;
+        margin: 0;
+      }
+    }
+
+    @media (max-width: 767px) and (display-mode: standalone) {
+      .fit-stage {
+        padding-bottom: max(0.2rem, env(safe-area-inset-bottom));
+      }
+
+      .app {
+        padding-bottom: 0.1rem;
+      }
+
+      .app > .controls {
+        padding-bottom: 0.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="fit-stage" id="fit-stage">
+    <div class="app" id="app" role="application" aria-label="LightSlice spectrum band filter">
+      <header class="top">
+        <div class="brand">
+          <h1>LightSlice</h1>
+        </div>
+        <div class="status" id="status">Camera off</div>
+      </header>
+
+      <div class="readouts">
+        <div class="stat">
+          <div class="stat-label">Band color</div>
+          <div class="stat-value swatch">
+            <span class="swatch-chip" id="swatch-chip" aria-hidden="true"></span>
+            <span id="color-name">Full</span>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Center</div>
+          <div class="stat-value" id="wave-readout">550 nm</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Band</div>
+          <div class="stat-value" id="band-readout">700 – 400 nm</div>
+        </div>
+      </div>
+
+      <div class="preview-wrap" id="preview-wrap" aria-label="Filtered camera view">
+        <video id="video" playsinline muted autoplay></video>
+        <canvas id="view" aria-label="Band-filtered camera output"></canvas>
+      </div>
+
+      <div class="spectrum-block" id="spectrum-block">
+        <div class="spectrum-row">
+          <div class="spectrum-label">
+            <span>Full EM spectrum</span>
+            <strong id="em-context">Visible is a thin ribbon</strong>
+          </div>
+          <div class="spectrum-track em" id="em-track">
+            <canvas id="em-canvas" aria-label="Full electromagnetic spectrum"></canvas>
+          </div>
+        </div>
+        <div class="spectrum-row">
+          <div class="spectrum-label">
+            <span>Visible · edges resize · drag middle to slide</span>
+            <strong id="vis-context">700 – 400 nm · full</strong>
+          </div>
+          <div class="spectrum-track vis" id="vis-track">
+            <canvas id="vis-canvas" aria-label="Visible spectrum band selector"></canvas>
+            <div id="vis-hit" role="slider" aria-label="Visible band" tabindex="0"></div>
+          </div>
+        </div>
+      </div>
+
+      <p class="hint" id="hint">
+        Full live image · band acts like a <span class="hint-white">spectral filter</span>
+      </p>
+
+      <div class="controls" id="controls">
+        <div class="row modes-presets">
+          <div class="modes">
+            <button type="button" class="btn btn-primary" id="start-btn" data-state="off">Start camera</button>
+            <button type="button" class="btn btn-ghost" id="flip-btn" disabled title="Switch camera">Flip</button>
+            <button type="button" class="btn btn-ghost" id="btn-full" title="Full visible band 400–700 nm">Full</button>
+          </div>
+          <div class="presets" role="group" aria-label="Band presets ROYGBIV">
+            <button type="button" class="btn btn-ghost" data-preset="red" title="~625–700 nm">R</button>
+            <button type="button" class="btn btn-ghost" data-preset="orange" title="~590–630 nm">O</button>
+            <button type="button" class="btn btn-ghost" data-preset="yellow" title="~560–595 nm">Y</button>
+            <button type="button" class="btn btn-ghost" data-preset="green" title="~495–565 nm">G</button>
+            <button type="button" class="btn btn-ghost" data-preset="blue" title="~450–495 nm">B</button>
+            <button type="button" class="btn btn-ghost" data-preset="indigo" title="~420–450 nm">I</button>
+            <button type="button" class="btn btn-ghost" data-preset="violet" title="~400–425 nm">V</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="fit-to-screen.js?v=19"></script>
+  <script src="app.js?v=19"></script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>
