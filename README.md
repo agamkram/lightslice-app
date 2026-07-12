@@ -6,8 +6,8 @@ Camera spectral band filter — fit-to-screen web app (AudioSlice’s light twin
 - Drag **LO / HI / band** on the visible spectrum (full band → **1 nm**)
 - Full live camera image, modified as if through a spectral bandpass filter
 - Selection marked on the **full EM** spectrum bar
-- Presets (V B G Y O R) · Full · Flip
-- RGB bandpass is approximate (teaching demo, not a spectrometer)
+- Presets ROYGBIV · Dog / Cat / Bee vision (approx.) · Full · Flip
+- RGB bandpass & animal vision are teaching demos, not lab-true
 
 ## Local
 

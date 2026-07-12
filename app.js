@@ -12,16 +12,43 @@
   const FULL_WIDTH = VIS_MAX - VIS_MIN; // 300
 
   // ROYGBIV — unequal named bands (not equal nm).
-  // O/Y slightly wider than the tightest textbook cuts: still in-range for
-  // those names, enough light for a stable RGB bandpass (less gain/noise).
   const PRESETS = {
-    red: { lo: 625, hi: 700 }, // ~75 nm
-    orange: { lo: 590, hi: 630 }, // ~40 nm (was 30)
-    yellow: { lo: 560, hi: 595 }, // ~35 nm (was 20)
-    green: { lo: 495, hi: 565 }, // ~70 nm
-    blue: { lo: 450, hi: 495 }, // ~45 nm
-    indigo: { lo: 420, hi: 450 }, // ~30 nm
-    violet: { lo: 400, hi: 425 }, // ~25 nm
+    red: { lo: 625, hi: 700 },
+    orange: { lo: 590, hi: 630 },
+    yellow: { lo: 560, hi: 595 },
+    green: { lo: 495, hi: 565 },
+    blue: { lo: 450, hi: 495 },
+    indigo: { lo: 420, hi: 450 },
+    violet: { lo: 400, hi: 425 },
+  };
+
+  /**
+   * Animal vision modes — teaching approximations on RGB video (not lab-true).
+   * Band lo/hi = rough sensitivity envelope for the spectrum UI marker.
+   * filter = how the live image is recolored.
+   */
+  const VISION = {
+    dog: {
+      lo: 430,
+      hi: 555,
+      label: "Dog",
+      // Dichromat: S ~430 nm + M/L ~555 nm; weak red
+      hint: "Dog · dichromat · blue + yellow-green · weak red",
+    },
+    cat: {
+      lo: 450,
+      hi: 560,
+      label: "Cat",
+      // Similar dichromat; slightly less blue weight than dog in this model
+      hint: "Cat · dichromat · blue + green-yellow · muted reds",
+    },
+    bee: {
+      lo: 400,
+      hi: 550,
+      label: "Bee",
+      // UV–blue–green; no red. Phone has no UV — blue used as UV proxy (false color)
+      hint: "Bee · UV+blue+green · no red · UV faked from blue",
+    },
   };
 
   const EM_SEGMENTS = [
@@ -63,6 +90,7 @@
     canFlip: false,
     lo: VIS_MIN,
     hi: VIS_MAX,
+    vision: null, // null | 'dog' | 'cat' | 'bee'
     frame: 0,
     // work buffer for filter
     work: null,
@@ -145,7 +173,11 @@
   }
 
   function isFullBand(lo, hi) {
-    return hi - lo >= FULL_WIDTH - 1;
+    return !state.vision && hi - lo >= FULL_WIDTH - 1;
+  }
+
+  function needsFilter() {
+    return !!state.vision || !isFullBand(state.lo, state.hi);
   }
 
   /**
@@ -203,6 +235,74 @@
       invTwoSig2,
     };
     return state.filt;
+  }
+
+  /** Dichromatic dog/cat-style: blue–yellow world, reds collapse toward dull. */
+  function filterDichromat(data, kind) {
+    // kind: 'dog' | 'cat' — small weight tweaks only
+    const sR = kind === "dog" ? 0.08 : 0.1;
+    const sG = kind === "dog" ? 0.12 : 0.18;
+    const sB = kind === "dog" ? 0.8 : 0.72;
+    const mR = kind === "dog" ? 0.35 : 0.42;
+    const mG = kind === "dog" ? 0.58 : 0.52;
+    const mB = kind === "dog" ? 0.07 : 0.06;
+
+    for (let i = 0, n = data.length; i < n; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      // Cone-ish responses (0–255)
+      const S = sR * r + sG * g + sB * b;
+      const M = mR * r + mG * g + mB * b;
+      // Reds that only hit “L” in humans look dark to dichromats
+      const redExtra = r - Math.max(g, b);
+      const darken = redExtra > 0 ? 1 - Math.min(0.55, redExtra * 0.0022) : 1;
+      // Reconstruct as yellow–blue (no independent red–green)
+      let or = M * 1.05 * darken;
+      let og = (M * 0.92 + S * 0.18) * darken;
+      let ob = (S * 1.15 + M * 0.12) * darken;
+      if (or > 255) or = 255;
+      if (og > 255) og = 255;
+      if (ob > 255) ob = 255;
+      if (or < 0) or = 0;
+      if (og < 0) og = 0;
+      if (ob < 0) ob = 0;
+      data[i] = or | 0;
+      data[i + 1] = og | 0;
+      data[i + 2] = ob | 0;
+    }
+  }
+
+  /**
+   * Bee-style: UV–blue–green; reds black. Camera has no UV — use blue excess
+   * as a false-color UV proxy (magenta), standard classroom cheat.
+   */
+  function filterBee(data) {
+    for (let i = 0, n = data.length; i < n; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      // No long-λ (red) channel for bees
+      const redDom = r - Math.max(g, b);
+      const redCut = redDom > 0 ? Math.min(1, redDom * 0.004) : 0;
+      // UV proxy: short-λ energy not explained by green
+      let uv = b * 1.15 - g * 0.45 - r * 0.1;
+      if (uv < 0) uv = 0;
+      // Blue + green retained; UV shown as violet/magenta false color
+      let or = g * 0.25 + uv * 0.85;
+      let og = g * 0.95 + b * 0.08;
+      let ob = b * 1.05 + uv * 0.35 + g * 0.05;
+      const keep = 1 - redCut * 0.92;
+      or *= keep;
+      og *= keep;
+      ob *= keep;
+      if (or > 255) or = 255;
+      if (og > 255) og = 255;
+      if (ob > 255) ob = 255;
+      data[i] = or | 0;
+      data[i + 1] = og | 0;
+      data[i + 2] = ob | 0;
+    }
   }
 
   /**
@@ -331,6 +431,7 @@
 
   /** Commit band edges. lo = short λ (violet/right), hi = long λ (red/left). */
   function setBand(lo, hi) {
+    clearVision();
     lo = Math.round(Number(lo));
     hi = Math.round(Number(hi));
     if (hi < lo) {
@@ -347,24 +448,32 @@
 
     state.lo = lo;
     state.hi = hi;
+    state.filt = null;
+    state.filtKey = "";
     syncBandUI();
   }
 
   /** Move only the short-λ edge (Band low number). Long-λ is forced frozen. */
   function setShortEdge(shortNm, frozenLong) {
+    clearVision();
     const hi = clamp(Math.round(frozenLong), VIS_MIN + MIN_BAND_NM, VIS_MAX);
     const lo = clamp(Math.round(shortNm), VIS_MIN, hi - MIN_BAND_NM);
     state.lo = lo;
     state.hi = hi;
+    state.filt = null;
+    state.filtKey = "";
     syncBandUI();
   }
 
   /** Move only the long-λ edge (Band high number). Short-λ is forced frozen. */
   function setLongEdge(longNm, frozenShort) {
+    clearVision();
     const lo = clamp(Math.round(frozenShort), VIS_MIN, VIS_MAX - MIN_BAND_NM);
     const hi = clamp(Math.round(longNm), lo + MIN_BAND_NM, VIS_MAX);
     state.lo = lo;
     state.hi = hi;
+    state.filt = null;
+    state.filtKey = "";
     syncBandUI();
   }
 
@@ -375,26 +484,68 @@
     const width = hi - lo;
     el.waveReadout.textContent = `${center} nm`;
     // Display left→right as on the strip: long/red (hi) – short/violet (lo)
-    el.bandReadout.textContent =
-      width >= FULL_WIDTH ? `${hi} – ${lo} · full` : `${hi} – ${lo} nm`;
-    el.visContext.textContent =
-      width >= FULL_WIDTH
-        ? `${hi} – ${lo} nm · full`
-        : `${hi} – ${lo} nm · ${width} nm wide`;
-    el.emContext.textContent =
-      width >= FULL_WIDTH ? "Full visible window" : "Your slice on the full band";
-
-    const midRgb =
-      width >= FULL_WIDTH - 1 ? { r: 240, g: 242, b: 246 } : wavelengthToRgb(center);
-    el.swatchChip.style.background = cssRgb(midRgb);
-    el.colorName.textContent = colorNameFromBand(lo, hi);
+    if (state.vision && VISION[state.vision]) {
+      const v = VISION[state.vision];
+      el.bandReadout.textContent = `${hi} – ${lo} nm`;
+      el.visContext.textContent = `${v.label} vision · approx`;
+      el.emContext.textContent = v.hint;
+      el.colorName.textContent = v.label;
+      if (state.vision === "bee") {
+        el.swatchChip.style.background = "rgb(180,80,220)";
+      } else if (state.vision === "dog") {
+        el.swatchChip.style.background = "rgb(160,150,90)";
+      } else {
+        el.swatchChip.style.background = "rgb(140,160,110)";
+      }
+    } else {
+      el.bandReadout.textContent =
+        width >= FULL_WIDTH ? `${hi} – ${lo} · full` : `${hi} – ${lo} nm`;
+      el.visContext.textContent =
+        width >= FULL_WIDTH
+          ? `${hi} – ${lo} nm · full`
+          : `${hi} – ${lo} nm · ${width} nm wide`;
+      el.emContext.textContent =
+        width >= FULL_WIDTH ? "Full visible window" : "Your slice on the full band";
+      const midRgb =
+        width >= FULL_WIDTH - 1
+          ? { r: 240, g: 242, b: 246 }
+          : wavelengthToRgb(center);
+      el.swatchChip.style.background = cssRgb(midRgb);
+      el.colorName.textContent = colorNameFromBand(lo, hi);
+    }
 
     el.btnFull.setAttribute(
       "aria-pressed",
-      width >= FULL_WIDTH - 1 ? "true" : "false"
+      !state.vision && width >= FULL_WIDTH - 1 ? "true" : "false"
     );
 
+    document.querySelectorAll("[data-vision]").forEach((b) => {
+      b.setAttribute(
+        "aria-pressed",
+        b.getAttribute("data-vision") === state.vision ? "true" : "false"
+      );
+    });
+
     drawSpectra();
+  }
+
+  function clearVision() {
+    state.vision = null;
+  }
+
+  function setVision(key) {
+    const v = VISION[key];
+    if (!v) return;
+    state.vision = key;
+    // Envelope on strip (marker only); image uses vision filter
+    state.lo = v.lo;
+    state.hi = v.hi;
+    state.filt = null;
+    state.filtKey = "";
+    syncBandUI();
+    document.querySelectorAll("[data-preset]").forEach((b) => {
+      b.setAttribute("aria-pressed", "false");
+    });
   }
 
   /* ── canvases ─────────────────────────────────────────────── */
@@ -601,6 +752,7 @@
 
     if (dragging === "band") {
       // Slide both edges; axis is reversed (right → lower nm)
+      clearVision();
       const dxNm = -((clientX - dragStartX) / w) * FULL_WIDTH;
       const widthNm = dragStartHi - dragStartLo;
       let lo = dragStartLo + dxNm;
@@ -613,7 +765,12 @@
         hi = VIS_MAX;
         lo = hi - widthNm;
       }
-      setBand(lo, hi);
+      // Avoid setBand's clearVision double-work; commit edges directly
+      state.lo = clamp(Math.round(lo), VIS_MIN, VIS_MAX - MIN_BAND_NM);
+      state.hi = clamp(Math.round(hi), state.lo + MIN_BAND_NM, VIS_MAX);
+      state.filt = null;
+      state.filtKey = "";
+      syncBandUI();
       return;
     }
 
@@ -686,8 +843,8 @@
     state.wrapH = wrap.height;
     if (wrap.width < 2 || wrap.height < 2) return null;
 
-    // Band path: dpr 1 is plenty (work buffer is already soft-scaled)
-    const filtered = !isFullBand(state.lo, state.hi);
+    // Band / vision path: dpr 1 is plenty (work buffer is already soft-scaled)
+    const filtered = needsFilter();
     const dpr = filtered ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     const outW = Math.max(1, Math.round(wrap.width * dpr));
     const outH = Math.max(1, Math.round(wrap.height * dpr));
@@ -728,8 +885,8 @@
     const hi = state.hi;
     const mirror = v.classList.contains("mirror");
 
-    // Full visible window = native video element (no JS pixels)
-    if (isFullBand(lo, hi)) {
+    // Full visible window = native video (skip JS) unless animal vision mode
+    if (!needsFilter()) {
       setPreviewMode(false);
       v.classList.toggle("mirror", mirror);
       return;
@@ -747,7 +904,13 @@
     wctx.drawImage(v, 0, 0, work.width, work.height);
 
     const img = wctx.getImageData(0, 0, work.width, work.height);
-    filterImageData(img.data, getFilterParams(lo, hi));
+    if (state.vision === "bee") {
+      filterBee(img.data);
+    } else if (state.vision === "dog" || state.vision === "cat") {
+      filterDichromat(img.data, state.vision);
+    } else {
+      filterImageData(img.data, getFilterParams(lo, hi));
+    }
     wctx.putImageData(img, 0, 0);
     drawCover(octx, work, outW, outH, mirror);
 
@@ -902,6 +1065,17 @@
       document.querySelectorAll("[data-preset]").forEach((b) => {
         b.setAttribute("aria-pressed", b === btn ? "true" : "false");
       });
+    });
+  });
+
+  document.querySelectorAll("[data-vision]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-vision");
+      if (state.vision === key) {
+        setBand(VIS_MIN, VIS_MAX);
+        return;
+      }
+      setVision(key);
     });
   });
 

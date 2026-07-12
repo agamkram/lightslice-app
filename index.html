@@ -428,6 +428,15 @@
       margin-left: auto;
     }
 
+    .row.vision-row {
+      justify-content: flex-end;
+      padding-top: 0.05rem;
+    }
+
+    .row.vision-row .presets {
+      margin-left: 0;
+    }
+
     .btn-ghost {
       background: transparent;
       font-weight: 500;
@@ -612,12 +621,34 @@
             <button type="button" class="btn btn-ghost" data-preset="violet" title="~400–425 nm">V</button>
           </div>
         </div>
+        <div class="row modes-presets vision-row">
+          <div class="presets" role="group" aria-label="Animal vision approximations">
+            <button
+              type="button"
+              class="btn btn-ghost"
+              data-vision="dog"
+              title="Dichromat · blue + yellow-green · weak red (approx.)"
+            >Dog</button>
+            <button
+              type="button"
+              class="btn btn-ghost"
+              data-vision="cat"
+              title="Dichromat · blue + green-yellow · muted reds (approx.)"
+            >Cat</button>
+            <button
+              type="button"
+              class="btn btn-ghost"
+              data-vision="bee"
+              title="UV + blue + green · no red · UV faked from blue (approx.)"
+            >Bee</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <script src="fit-to-screen.js?v=19"></script>
-  <script src="app.js?v=19"></script>
+  <script src="fit-to-screen.js?v=20"></script>
+  <script src="app.js?v=20"></script>
   <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
