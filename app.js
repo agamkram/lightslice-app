@@ -24,29 +24,26 @@
 
   /**
    * Animal vision modes — teaching approximations on RGB video (not lab-true).
-   * Band lo/hi = rough sensitivity envelope for the spectrum UI marker.
-   * filter = how the live image is recolored.
+   * Band lo/hi = rough marker on the visible strip (envelope / analogy only).
    */
   const VISION = {
-    dog: {
-      lo: 430,
-      hi: 555,
-      label: "Dog",
-      // Dichromat: S ~430 nm + M/L ~555 nm; weak red
-      hint: "Dog · dichromat · blue + yellow-green · weak red",
+    snake: {
+      lo: 400,
+      hi: 700,
+      label: "Snake",
+      // Pit vipers: mid-IR heat pits — not visible light. Simulated as thermal false color.
+      hint: "Snake · pit thermal (fake) · warm=bright · not real IR",
     },
     cat: {
       lo: 450,
       hi: 560,
       label: "Cat",
-      // Similar dichromat; slightly less blue weight than dog in this model
       hint: "Cat · dichromat · blue + green-yellow · muted reds",
     },
     bee: {
       lo: 400,
       hi: 550,
       label: "Bee",
-      // UV–blue–green; no red. Phone has no UV — blue used as UV proxy (false color)
       hint: "Bee · UV+blue+green · no red · UV faked from blue",
     },
   };
@@ -90,7 +87,7 @@
     canFlip: false,
     lo: VIS_MIN,
     hi: VIS_MAX,
-    vision: null, // null | 'dog' | 'cat' | 'bee'
+    vision: null, // null | 'snake' | 'cat' | 'bee'
     frame: 0,
     // work buffer for filter
     work: null,
@@ -237,27 +234,23 @@
     return state.filt;
   }
 
-  /** Dichromatic dog/cat-style: blue–yellow world, reds collapse toward dull. */
-  function filterDichromat(data, kind) {
-    // kind: 'dog' | 'cat' — small weight tweaks only
-    const sR = kind === "dog" ? 0.08 : 0.1;
-    const sG = kind === "dog" ? 0.12 : 0.18;
-    const sB = kind === "dog" ? 0.8 : 0.72;
-    const mR = kind === "dog" ? 0.35 : 0.42;
-    const mG = kind === "dog" ? 0.58 : 0.52;
-    const mB = kind === "dog" ? 0.07 : 0.06;
+  /** Dichromatic cat-style: blue–yellow world, reds collapse toward dull. */
+  function filterCat(data) {
+    const sR = 0.1;
+    const sG = 0.18;
+    const sB = 0.72;
+    const mR = 0.42;
+    const mG = 0.52;
+    const mB = 0.06;
 
     for (let i = 0, n = data.length; i < n; i += 4) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
-      // Cone-ish responses (0–255)
       const S = sR * r + sG * g + sB * b;
       const M = mR * r + mG * g + mB * b;
-      // Reds that only hit “L” in humans look dark to dichromats
       const redExtra = r - Math.max(g, b);
       const darken = redExtra > 0 ? 1 - Math.min(0.55, redExtra * 0.0022) : 1;
-      // Reconstruct as yellow–blue (no independent red–green)
       let or = M * 1.05 * darken;
       let og = (M * 0.92 + S * 0.18) * darken;
       let ob = (S * 1.15 + M * 0.12) * darken;
@@ -267,6 +260,57 @@
       if (or < 0) or = 0;
       if (og < 0) og = 0;
       if (ob < 0) ob = 0;
+      data[i] = or | 0;
+      data[i + 1] = og | 0;
+      data[i + 2] = ob | 0;
+    }
+  }
+
+  /**
+   * Pit-snake thermal analogy: map scene brightness → heat palette.
+   * Real pits sense mid-IR (~µm), not visible light — this is a classroom fake.
+   */
+  function filterSnake(data) {
+    for (let i = 0, n = data.length; i < n; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      // Luma as stand-in for “warmth” (brighter → “hotter”)
+      let t = (0.2126 * r + 0.7152 * g + 0.0722 * b) * 0.00392156862745098;
+      // Slight boost so outdoor scenes still show range
+      t = t * 1.08;
+      if (t > 1) t = 1;
+      if (t < 0) t = 0;
+      // Thermal-ish ramp: black → indigo → red → orange → yellow → white
+      let or;
+      let og;
+      let ob;
+      if (t < 0.2) {
+        const u = t / 0.2;
+        or = 0;
+        og = 0;
+        ob = 20 + u * 80;
+      } else if (t < 0.4) {
+        const u = (t - 0.2) / 0.2;
+        or = u * 120;
+        og = 0;
+        ob = 100 + u * 80;
+      } else if (t < 0.6) {
+        const u = (t - 0.4) / 0.2;
+        or = 120 + u * 135;
+        og = u * 40;
+        ob = 180 - u * 160;
+      } else if (t < 0.8) {
+        const u = (t - 0.6) / 0.2;
+        or = 255;
+        og = 40 + u * 160;
+        ob = 20 - u * 20;
+      } else {
+        const u = (t - 0.8) / 0.2;
+        or = 255;
+        og = 200 + u * 55;
+        ob = u * 200;
+      }
       data[i] = or | 0;
       data[i + 1] = og | 0;
       data[i + 2] = ob | 0;
@@ -492,8 +536,8 @@
       el.colorName.textContent = v.label;
       if (state.vision === "bee") {
         el.swatchChip.style.background = "rgb(180,80,220)";
-      } else if (state.vision === "dog") {
-        el.swatchChip.style.background = "rgb(160,150,90)";
+      } else if (state.vision === "snake") {
+        el.swatchChip.style.background = "rgb(255,80,20)";
       } else {
         el.swatchChip.style.background = "rgb(140,160,110)";
       }
@@ -906,8 +950,10 @@
     const img = wctx.getImageData(0, 0, work.width, work.height);
     if (state.vision === "bee") {
       filterBee(img.data);
-    } else if (state.vision === "dog" || state.vision === "cat") {
-      filterDichromat(img.data, state.vision);
+    } else if (state.vision === "cat") {
+      filterCat(img.data);
+    } else if (state.vision === "snake") {
+      filterSnake(img.data);
     } else {
       filterImageData(img.data, getFilterParams(lo, hi));
     }
