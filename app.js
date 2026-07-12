@@ -907,13 +907,22 @@
 
   /* ── fit + boot ───────────────────────────────────────────── */
 
+  /** True Mac/PC only — iPads are wide but touch; they should fluid-fill like phones. */
+  function isDesktopPointer() {
+    return (
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches
+    );
+  }
+
   const fit = window.FitToScreen.create({
     stage: "fit-stage",
     app: "app",
-    phoneMaxWidth: 767,
+    phoneMaxWidth: 1366,
     wideAppWidth: 720,
     capScaleAtOne: true,
-    useScaleForLayout: (layout, availW) => availW > 767,
+    // Scale the fixed 720 card only on desktop; phones + tablets use full-bleed fluid.
+    useScaleForLayout: (layout, availW) => isDesktopPointer() && availW > 767,
     onFit: () => {
       drawSpectra();
       if (!state.running) processFrame();

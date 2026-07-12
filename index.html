@@ -457,7 +457,15 @@
       pointer-events: auto;
     }
 
-    @media (max-width: 767px) {
+    /*
+     * Full-bleed fluid layout: phones + tablets (iPad, etc.).
+     * iPads are often 834–1180px wide — they were treated as "desktop card"
+     * (fixed 720px, scale ≤1) which left huge empty borders (~half the screen).
+     * Mac/PC with fine pointer + hover keep the centered 720 card below.
+     */
+    @media (max-width: 767px),
+      ((max-width: 1366px) and (hover: none)),
+      ((max-width: 1366px) and (pointer: coarse)) {
       .fit-stage,
       .fit-stage.fit-stage--fluid {
         position: fixed;
@@ -511,7 +519,9 @@
       }
     }
 
-    @media (max-width: 767px) and (display-mode: standalone) {
+    @media ((max-width: 767px) and (display-mode: standalone)),
+      ((max-width: 1366px) and (hover: none) and (display-mode: standalone)),
+      ((max-width: 1366px) and (pointer: coarse) and (display-mode: standalone)) {
       .fit-stage {
         padding-bottom: env(safe-area-inset-bottom, 0px);
       }
