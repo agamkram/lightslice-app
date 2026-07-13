@@ -29,10 +29,10 @@
   const VISION = {
     snake: {
       lo: 400,
-      hi: 700,
+      hi: 560,
       label: "Snake",
-      // Pit vipers: mid-IR heat pits — not visible light. Simulated as thermal false color.
-      hint: "Snake · pit thermal (fake) · warm=bright · not real IR",
+      // Daylight dichromat: SWS1 (UV–violet) + LWS (green–yellow). Not pit thermal.
+      hint: "Snake · dichromat eyes · UV+blue + green-yellow · muted reds",
     },
     cat: {
       lo: 450,
@@ -267,50 +267,58 @@
   }
 
   /**
-   * Pit-snake thermal analogy: map scene brightness → heat palette.
-   * Real pits sense mid-IR (~µm), not visible light — this is a classroom fake.
+   * Snake eye vision: daylight dichromat (SWS1 short + LWS long).
+   * No separate red cone — reds muddied; mild UV proxy from blue (camera has no UV).
+   * Teaching approx on RGB video — not lab-true; not pit thermal.
    */
   function filterSnake(data) {
+    // Short: UV–violet–blue (SWS1). Long: green–yellow ~550 nm (LWS).
+    const sR = 0.06;
+    const sG = 0.14;
+    const sB = 0.8;
+    const lR = 0.32;
+    const lG = 0.62;
+    const lB = 0.06;
+
     for (let i = 0, n = data.length; i < n; i += 4) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
-      // Luma as stand-in for “warmth” (brighter → “hotter”)
-      let t = (0.2126 * r + 0.7152 * g + 0.0722 * b) * 0.00392156862745098;
-      // Slight boost so outdoor scenes still show range
-      t = t * 1.08;
-      if (t > 1) t = 1;
-      if (t < 0) t = 0;
-      // Thermal-ish ramp: black → indigo → red → orange → yellow → white
-      let or;
-      let og;
-      let ob;
-      if (t < 0.2) {
-        const u = t / 0.2;
-        or = 0;
-        og = 0;
-        ob = 20 + u * 80;
-      } else if (t < 0.4) {
-        const u = (t - 0.2) / 0.2;
-        or = u * 120;
-        og = 0;
-        ob = 100 + u * 80;
-      } else if (t < 0.6) {
-        const u = (t - 0.4) / 0.2;
-        or = 120 + u * 135;
-        og = u * 40;
-        ob = 180 - u * 160;
-      } else if (t < 0.8) {
-        const u = (t - 0.6) / 0.2;
-        or = 255;
-        og = 40 + u * 160;
-        ob = 20 - u * 20;
-      } else {
-        const u = (t - 0.8) / 0.2;
-        or = 255;
-        og = 200 + u * 55;
-        ob = u * 200;
+
+      // Classroom UV cheat: short-λ excess (milder than bee)
+      let uv = b * 1.05 - g * 0.35 - r * 0.1;
+      if (uv < 0) uv = 0;
+
+      const S = sR * r + sG * g + sB * b + uv * 0.4;
+      const L = lR * r + lG * g + lB * b;
+
+      // Rebuild from two channels: cool short + yellow-green long
+      let or = L * 0.72 + S * 0.12 + uv * 0.2;
+      let og = L * 0.95 + S * 0.14;
+      let ob = S * 1.12 + L * 0.16 + uv * 0.28;
+
+      // Pure reds collapse (no red cone)
+      const redExtra = r - Math.max(g, b);
+      if (redExtra > 0) {
+        const darken = 1 - Math.min(0.62, redExtra * 0.0024);
+        or *= darken;
+        og *= darken * 0.96;
+        ob *= darken * 0.92;
       }
+
+      // Flatten candy colors slightly (dichromat feel)
+      const lum = 0.2126 * or + 0.7152 * og + 0.0722 * ob;
+      const flat = 0.18;
+      or = or * (1 - flat) + lum * flat;
+      og = og * (1 - flat) + lum * flat;
+      ob = ob * (1 - flat) + lum * flat;
+
+      if (or > 255) or = 255;
+      if (og > 255) og = 255;
+      if (ob > 255) ob = 255;
+      if (or < 0) or = 0;
+      if (og < 0) og = 0;
+      if (ob < 0) ob = 0;
       data[i] = or | 0;
       data[i + 1] = og | 0;
       data[i + 2] = ob | 0;
@@ -537,7 +545,7 @@
       if (state.vision === "bee") {
         el.swatchChip.style.background = "rgb(180,80,220)";
       } else if (state.vision === "snake") {
-        el.swatchChip.style.background = "rgb(255,80,20)";
+        el.swatchChip.style.background = "rgb(95,145,130)";
       } else {
         el.swatchChip.style.background = "rgb(140,160,110)";
       }
