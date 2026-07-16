@@ -112,9 +112,20 @@
 
     function applyFluidLayout(layout) {
       stage.classList.add("fit-stage--fluid");
+      // Drop any visualViewport top/left/width/height pins so CSS inset:0
+      // (or pinPhoneFill) can fill the screen — leftover pins shove the app
+      // left and below the fold on iOS Safari.
+      stage.style.top = "";
+      stage.style.left = "";
+      stage.style.right = "";
+      stage.style.bottom = "";
+      stage.style.width = "";
+      stage.style.height = "";
       app.dataset.layout = layout;
       app.style.width = "";
       app.style.maxWidth = "";
+      app.style.height = "";
+      app.style.maxHeight = "";
       app.style.transform = "none";
       fitLayout = layout;
       fitAvailH = stage.clientHeight;

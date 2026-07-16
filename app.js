@@ -105,6 +105,8 @@
   ];
 
   const el = {
+    stage: document.getElementById("fit-stage"),
+    app: document.getElementById("app"),
     status: document.getElementById("status"),
     hint: document.getElementById("hint"),
     startBtn: document.getElementById("start-btn"),
@@ -1414,6 +1416,73 @@
     );
   }
 
+  function usesFluidFill() {
+    // Same rule as useScaleForLayout inverted — phone/tablet full-bleed.
+    return !(isDesktopPointer() && window.innerWidth > 767);
+  }
+
+  /**
+   * Phone/tablet: pin stage to the visible edges (AudioSlice twin).
+   * FitToScreen can leave visualViewport top/left/width/height inline styles
+   * that shove the app left and below the screen; edge-pin clears that.
+   */
+  function pinPhoneFill() {
+    const stage = el.stage;
+    const app = el.app;
+    if (!stage || !app) return;
+
+    if (!usesFluidFill()) {
+      stage.classList.remove("fit-stage--fluid");
+      stage.style.top = "";
+      stage.style.left = "";
+      stage.style.right = "";
+      stage.style.bottom = "";
+      stage.style.width = "";
+      stage.style.height = "";
+      stage.style.position = "";
+      app.style.height = "";
+      app.style.width = "";
+      app.style.maxHeight = "";
+      app.style.maxWidth = "";
+      app.style.transform = "";
+      return;
+    }
+
+    const vv = window.visualViewport;
+    const standalone =
+      (typeof window.matchMedia === "function" &&
+        window.matchMedia("(display-mode: standalone)").matches) ||
+      window.navigator.standalone === true;
+
+    stage.classList.add("fit-stage--fluid");
+    stage.style.position = "fixed";
+    stage.style.width = "";
+    stage.style.height = "";
+
+    if (!standalone && vv && vv.height > 40 && vv.width > 40) {
+      // Safari tab: visible area only (URL bar)
+      stage.style.top = `${Math.round(vv.offsetTop) || 0}px`;
+      stage.style.left = `${Math.round(vv.offsetLeft) || 0}px`;
+      stage.style.width = `${Math.round(vv.width)}px`;
+      stage.style.height = `${Math.round(vv.height)}px`;
+      stage.style.right = "auto";
+      stage.style.bottom = "auto";
+    } else {
+      // PWA / full phone: stretch to every edge
+      stage.style.top = "0";
+      stage.style.left = "0";
+      stage.style.right = "0";
+      stage.style.bottom = "0";
+    }
+
+    app.style.transform = "none";
+    app.style.width = "100%";
+    app.style.maxWidth = "none";
+    app.style.height = "100%";
+    app.style.maxHeight = "none";
+    app.dataset.layout = "phone";
+  }
+
   const fit = window.FitToScreen.create({
     stage: "fit-stage",
     app: "app",
@@ -1423,23 +1492,36 @@
     // Scale the fixed 720 card only on desktop; phones + tablets use full-bleed fluid.
     useScaleForLayout: (layout, availW) => isDesktopPointer() && availW > 767,
     onFit: () => {
+      pinPhoneFill();
       drawSpectra();
       if (!state.running) processFrame();
     },
   });
 
   function onResize() {
+    pinPhoneFill();
     drawSpectra();
   }
 
+  // Open: edge-fill before/after boot so we never flash a misplaced 720 card
+  pinPhoneFill();
   fit.bindViewportListeners();
   fit.bootLayout().then(() => {
+    pinPhoneFill();
     setBand(VIS_MIN, VIS_MAX);
     processFrame();
   });
 
   window.addEventListener("resize", onResize);
   window.visualViewport?.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", () => {
+    pinPhoneFill();
+    setTimeout(pinPhoneFill, 200);
+    setTimeout(() => {
+      pinPhoneFill();
+      drawSpectra();
+    }, 450);
+  });
 
   if (!window.isSecureContext) {
     setStatus("Needs HTTPS", "err");
