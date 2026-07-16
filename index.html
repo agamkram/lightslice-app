@@ -460,14 +460,28 @@
       margin-left: 0;
     }
 
-    /* Colorblind types (bottom row) */
+    /* Colorblind types (bottom row) — equal-width full names */
     .row.slot-row {
-      justify-content: flex-end;
+      justify-content: stretch;
       padding-top: 0.05rem;
     }
 
     .row.slot-row .presets {
       margin-left: 0;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.3rem;
+      width: 100%;
+    }
+
+    .row.slot-row .presets .btn {
+      width: 100%;
+      min-width: 0;
+      padding-left: 0.25rem;
+      padding-right: 0.25rem;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .btn-ghost {
@@ -697,34 +711,34 @@
               type="button"
               class="btn btn-ghost"
               data-vision="deutan"
-              title="Deutan - green-weak · red≈green"
-            >Deutan</button>
+              title="Deuteranopia - green-weak · red≈green"
+            >Deuteranopia</button>
             <button
               type="button"
               class="btn btn-ghost"
               data-vision="protan"
-              title="Protan - red-weak · reds dim"
-            >Protan</button>
+              title="Protanopia - red-weak · reds dim"
+            >Protanopia</button>
             <button
               type="button"
               class="btn btn-ghost"
               data-vision="tritan"
-              title="Tritan - blue-yellow weak"
-            >Tritan</button>
+              title="Tritanopia - blue-yellow weak"
+            >Tritanopia</button>
             <button
               type="button"
               class="btn btn-ghost"
               data-vision="mono"
-              title="Mono - achromat · grayscale"
-            >Mono</button>
+              title="Monochromacy - achromat · grayscale"
+            >Monochromacy</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="fit-to-screen.js?v=24"></script>
-  <script src="app.js?v=24"></script>
+  <script src="fit-to-screen.js?v=25"></script>
+  <script src="app.js?v=25"></script>
   <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
