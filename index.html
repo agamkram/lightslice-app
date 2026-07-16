@@ -416,6 +416,12 @@
       gap: 0.35rem 0.5rem;
     }
 
+    /* Top row: Stop / Flip / Full | ROYGBIV — keep on one line */
+    .row.primary-row {
+      flex-wrap: nowrap;
+      gap: 0.25rem 0.35rem;
+    }
+
     .row.modes-presets .modes,
     .row.modes-presets .presets {
       display: flex;
@@ -424,10 +430,27 @@
       gap: 0.3rem;
     }
 
+    .row.primary-row .modes,
+    .row.primary-row .presets {
+      flex-wrap: nowrap;
+      flex-shrink: 0;
+    }
+
+    .row.primary-row .presets {
+      margin-left: auto;
+      gap: 0.15rem;
+    }
+
+    .row.primary-row .presets .btn-ghost {
+      padding: 0.35rem 0.42rem;
+      min-width: 1.65em;
+    }
+
     .row.modes-presets .presets {
       margin-left: auto;
     }
 
+    /* Animals sit on the former ROYGBIV wrap line (row 2) */
     .row.vision-row {
       justify-content: flex-end;
       padding-top: 0.05rem;
@@ -435,6 +458,12 @@
 
     .row.vision-row .presets {
       margin-left: 0;
+    }
+
+    /* Reserved row (former animal row) — holds card height for next buttons */
+    .row.slot-row {
+      min-height: calc(var(--text-ui) + 0.7rem + 2px);
+      padding-top: 0.05rem;
     }
 
     .btn-ghost {
@@ -522,6 +551,15 @@
         padding: 0.36rem 0.36rem 0.12rem;
       }
 
+      .row.primary-row .modes {
+        gap: 0.2rem;
+      }
+
+      .row.primary-row .modes .btn {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+      }
+
       .hint {
         min-height: 1.1em;
         margin: 0;
@@ -605,7 +643,7 @@
       </p>
 
       <div class="controls" id="controls">
-        <div class="row modes-presets">
+        <div class="row modes-presets primary-row">
           <div class="modes">
             <button type="button" class="btn btn-primary" id="start-btn" data-state="off">Start camera</button>
             <button type="button" class="btn btn-ghost" id="flip-btn" disabled title="Switch camera">Flip</button>
@@ -649,12 +687,13 @@
             >Bat</button>
           </div>
         </div>
+        <div class="row slot-row" id="controls-slot" aria-hidden="true"></div>
       </div>
     </div>
   </div>
 
-  <script src="fit-to-screen.js?v=22"></script>
-  <script src="app.js?v=22"></script>
+  <script src="fit-to-screen.js?v=23"></script>
+  <script src="app.js?v=23"></script>
   <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
