@@ -550,8 +550,7 @@
         el.swatchChip.style.background = "rgb(140,160,110)";
       }
     } else {
-      el.bandReadout.textContent =
-        width >= FULL_WIDTH ? `${hi} – ${lo} · full` : `${hi} – ${lo} nm`;
+      el.bandReadout.textContent = `${hi} – ${lo} nm`;
       el.visContext.textContent =
         width >= FULL_WIDTH
           ? `${hi} – ${lo} nm · full`
