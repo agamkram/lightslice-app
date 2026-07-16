@@ -32,7 +32,7 @@
       hi: 560,
       label: "Snake",
       // Daylight dichromat: SWS1 (UV–violet) + LWS (green–yellow). Not pit thermal.
-      hint: "Snake - dichromat eyes · UV+blue + green-yellow · muted reds",
+      hint: "Snake - dichromat · muted reds",
     },
     cat: {
       lo: 450,
