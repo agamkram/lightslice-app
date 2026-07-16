@@ -703,7 +703,7 @@
     if (state.vision && VISION[state.vision]) {
       const v = VISION[state.vision];
       el.bandReadout.textContent = `${hi} – ${lo} nm`;
-      el.visContext.textContent = `${v.label} vision · approx`;
+      el.visContext.textContent = `${v.label} vision`;
       el.emContext.textContent = v.hint;
       el.colorName.textContent = v.label;
       if (v.swatch) {
