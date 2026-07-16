@@ -44,7 +44,7 @@
       lo: 400,
       hi: 550,
       label: "Bee",
-      hint: "Bee - Simulated UV push",
+      hint: "Bee - Simulated UV",
     },
   };
 
