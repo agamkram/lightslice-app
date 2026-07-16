@@ -735,10 +735,10 @@
       const x0 = vis.x + tLeft * vis.w;
       const x1 = vis.x + tRight * vis.w;
       const bw = Math.max(2, x1 - x0);
-      ctx.fillStyle = "rgba(255,255,255,0.28)";
+      ctx.fillStyle = "rgba(255,255,255,0.32)";
       ctx.fillRect(x0, 0, bw, h);
-      ctx.strokeStyle = "rgba(255,255,255,0.95)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(255,255,255,1)";
+      ctx.lineWidth = 2.25;
       ctx.strokeRect(x0 + 0.5, 0.5, bw - 1, h - 1);
 
       ctx.strokeStyle = "rgba(255,255,255,0.35)";
