@@ -52,6 +52,36 @@
       label: "Bat",
       // Nocturnal dichromat: SWS1 (UV–blue) + LWS; low-light, limited color. Not echolocation.
       hint: "Bat - night dichromat · UV+blue + green-yellow · dim",
+      swatch: "rgb(70,90,120)",
+    },
+    // Human color vision deficiency (Viénot-style RGB teaching sims — not clinical).
+    deutan: {
+      lo: 400,
+      hi: 700,
+      label: "Deutan",
+      hint: "Deutan - green-weak · red≈green · blues/yellows kept",
+      swatch: "rgb(160,150,100)",
+    },
+    protan: {
+      lo: 400,
+      hi: 700,
+      label: "Protan",
+      hint: "Protan - red-weak · reds dim · red≈green",
+      swatch: "rgb(130,140,110)",
+    },
+    tritan: {
+      lo: 400,
+      hi: 700,
+      label: "Tritan",
+      hint: "Tritan - blue-yellow weak · blues/yellows confuse",
+      swatch: "rgb(150,120,140)",
+    },
+    mono: {
+      lo: 400,
+      hi: 700,
+      label: "Mono",
+      hint: "Mono - achromat · grayscale · rare",
+      swatch: "rgb(150,150,150)",
     },
   };
 
@@ -94,7 +124,7 @@
     canFlip: false,
     lo: VIS_MIN,
     hi: VIS_MAX,
-    vision: null, // null | 'snake' | 'cat' | 'bee' | 'bat'
+    vision: null, // null | animal | colorblind keys
     frame: 0,
     // work buffer for filter
     work: null,
@@ -396,6 +426,69 @@
     }
   }
 
+  /** Apply 3×3 RGB matrix (rows = out R,G,B). Teaching sim only. */
+  function filterRgbMatrix(data, m00, m01, m02, m10, m11, m12, m20, m21, m22) {
+    for (let i = 0, n = data.length; i < n; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      let or = m00 * r + m01 * g + m02 * b;
+      let og = m10 * r + m11 * g + m12 * b;
+      let ob = m20 * r + m21 * g + m22 * b;
+      if (or > 255) or = 255;
+      else if (or < 0) or = 0;
+      if (og > 255) og = 255;
+      else if (og < 0) og = 0;
+      if (ob > 255) ob = 255;
+      else if (ob < 0) ob = 0;
+      data[i] = or | 0;
+      data[i + 1] = og | 0;
+      data[i + 2] = ob | 0;
+    }
+  }
+
+  /** Deuteranopia (missing M / green cones) — Viénot-style RGB approx. */
+  function filterDeutan(data) {
+    filterRgbMatrix(
+      data,
+      0.625, 0.375, 0,
+      0.7, 0.3, 0,
+      0, 0.3, 0.7
+    );
+  }
+
+  /** Protanopia (missing L / red cones) — reds dim + red–green collapse. */
+  function filterProtan(data) {
+    filterRgbMatrix(
+      data,
+      0.567, 0.433, 0,
+      0.558, 0.442, 0,
+      0, 0.242, 0.758
+    );
+  }
+
+  /** Tritanopia (missing S / blue cones) — blue–yellow confusions. */
+  function filterTritan(data) {
+    filterRgbMatrix(
+      data,
+      0.95, 0.05, 0,
+      0, 0.433, 0.567,
+      0, 0.475, 0.525
+    );
+  }
+
+  /** Achromatopsia / monochromacy — luminance only. */
+  function filterMono(data) {
+    for (let i = 0, n = data.length; i < n; i += 4) {
+      const y =
+        0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+      const v = y | 0;
+      data[i] = v;
+      data[i + 1] = v;
+      data[i + 2] = v;
+    }
+  }
+
   /**
    * Bee-style: UV–blue–green; reds black. Camera has no UV — use blue excess
    * as a false-color UV proxy (magenta), standard classroom cheat.
@@ -613,12 +706,12 @@
       el.visContext.textContent = `${v.label} vision · approx`;
       el.emContext.textContent = v.hint;
       el.colorName.textContent = v.label;
-      if (state.vision === "bee") {
+      if (v.swatch) {
+        el.swatchChip.style.background = v.swatch;
+      } else if (state.vision === "bee") {
         el.swatchChip.style.background = "rgb(180,80,220)";
       } else if (state.vision === "snake") {
         el.swatchChip.style.background = "rgb(95,145,130)";
-      } else if (state.vision === "bat") {
-        el.swatchChip.style.background = "rgb(70,90,120)";
       } else {
         el.swatchChip.style.background = "rgb(140,160,110)";
       }
@@ -1037,6 +1130,14 @@
       filterSnake(img.data);
     } else if (state.vision === "bat") {
       filterBat(img.data);
+    } else if (state.vision === "deutan") {
+      filterDeutan(img.data);
+    } else if (state.vision === "protan") {
+      filterProtan(img.data);
+    } else if (state.vision === "tritan") {
+      filterTritan(img.data);
+    } else if (state.vision === "mono") {
+      filterMono(img.data);
     } else {
       filterImageData(img.data, getFilterParams(lo, hi));
     }

@@ -6,9 +6,9 @@ Camera spectral band filter — fit-to-screen web app (AudioSlice’s light twin
 - Drag **LO / HI / band** on the visible spectrum (full band → **1 nm**)
 - Full live camera image, modified as if through a spectral bandpass filter
 - Selection marked on the **full EM** spectrum bar
-- Presets ROYGBIV · Snake / Cat / Bee / Bat vision (approx.) · Full · Flip
-- RGB bandpass & animal vision are teaching demos, not lab-true
-  (Snake/Cat/Bat = dichromat approx; Bee = Simulated UV; Bat = night + mild UV)
+- Presets ROYGBIV · Snake / Cat / Bee / Bat · Deutan / Protan / Tritan / Mono · Full · Flip
+- RGB bandpass & animal / colorblind vision are teaching demos, not lab-true
+  (animals = dichromat approx; colorblind = Viénot-style RGB sims)
 
 ## Local
 
