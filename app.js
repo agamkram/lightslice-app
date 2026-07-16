@@ -59,15 +59,15 @@
       lo: 400,
       hi: 700,
       label: "Deuteranopia",
-      hint: "Deuteranopia - green-weak · red≈green · blues/yellows kept",
+      hint: "Deuteranopia - green-weak · red≈green · reds stay brighter",
       swatch: "rgb(160,150,100)",
     },
     protan: {
       lo: 400,
       hi: 700,
       label: "Protanopia",
-      hint: "Protanopia - red-weak · reds dim · red≈green",
-      swatch: "rgb(130,140,110)",
+      hint: "Protanopia - red-weak · reds darker · red≈green",
+      swatch: "rgb(110,125,100)",
     },
     tritan: {
       lo: 400,
@@ -447,7 +447,11 @@
     }
   }
 
-  /** Deuteranopia (missing M / green cones) — Viénot-style RGB approx. */
+  /**
+   * Deuteranopia (missing M / green cones).
+   * Red–green collapse; reds keep more brightness than protanopia.
+   * Viénot-style RGB teaching sim.
+   */
   function filterDeutan(data) {
     filterRgbMatrix(
       data,
@@ -457,14 +461,38 @@
     );
   }
 
-  /** Protanopia (missing L / red cones) — reds dim + red–green collapse. */
+  /**
+   * Protanopia (missing L / red cones).
+   * Same red–green confusion family as deutan, plus long-λ luminance loss
+   * so pure/red-dominant colors go darker (main visible difference vs deutan).
+   */
   function filterProtan(data) {
-    filterRgbMatrix(
-      data,
-      0.567, 0.433, 0,
-      0.558, 0.442, 0,
-      0, 0.242, 0.758
-    );
+    for (let i = 0, n = data.length; i < n; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      // Viénot protanopia RGB
+      let or = 0.567 * r + 0.433 * g;
+      let og = 0.558 * r + 0.442 * g;
+      let ob = 0.242 * g + 0.758 * b;
+      // L-cone missing → long wavelengths contribute less light
+      const longEx = r - 0.55 * g - 0.2 * b;
+      if (longEx > 0) {
+        const dim = 1 - Math.min(0.55, longEx * 0.0028);
+        or *= dim;
+        og *= dim * 0.97;
+        ob *= dim * 0.94;
+      }
+      if (or > 255) or = 255;
+      else if (or < 0) or = 0;
+      if (og > 255) og = 255;
+      else if (og < 0) og = 0;
+      if (ob > 255) ob = 255;
+      else if (ob < 0) ob = 0;
+      data[i] = or | 0;
+      data[i + 1] = og | 0;
+      data[i + 2] = ob | 0;
+    }
   }
 
   /** Tritanopia (missing S / blue cones) — blue–yellow confusions. */
