@@ -8,7 +8,7 @@ Camera spectral band filter — fit-to-screen web app (AudioSlice’s light twin
 - Selection marked on the **full EM** spectrum bar
 - Presets ROYGBIV · Snake / Cat / Bee vision (approx.) · Full · Flip
 - RGB bandpass & animal vision are teaching demos, not lab-true
-  (Snake = dichromat eyes, UV faked from blue; Bee UV faked from blue)
+  (Snake/Cat = dichromat approx; Bee = Simulated UV push)
 
 ## Local
 
