@@ -556,14 +556,15 @@
         width >= FULL_WIDTH
           ? `${hi} – ${lo} nm · full`
           : `${hi} – ${lo} nm · ${width} nm wide`;
+      const bandTitle = colorNameFromBand(lo, hi);
       el.emContext.textContent =
-        width >= FULL_WIDTH ? "Full visible window" : "Your slice on the full band";
+        width >= FULL_WIDTH ? "Full visible window" : bandTitle;
       const midRgb =
         width >= FULL_WIDTH - 1
           ? { r: 240, g: 242, b: 246 }
           : wavelengthToRgb(center);
       el.swatchChip.style.background = cssRgb(midRgb);
-      el.colorName.textContent = colorNameFromBand(lo, hi);
+      el.colorName.textContent = bandTitle;
     }
 
     el.btnFull.setAttribute(
