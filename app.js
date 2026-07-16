@@ -1291,6 +1291,18 @@
     btn.addEventListener("click", () => {
       const p = PRESETS[btn.getAttribute("data-preset")];
       if (!p) return;
+      // Retouch active ROYGBIV → full (same as animal / colorblind toggle)
+      if (
+        !state.vision &&
+        state.lo === p.lo &&
+        state.hi === p.hi
+      ) {
+        setBand(VIS_MIN, VIS_MAX);
+        document.querySelectorAll("[data-preset]").forEach((b) => {
+          b.setAttribute("aria-pressed", "false");
+        });
+        return;
+      }
       setBand(p.lo, p.hi);
       document.querySelectorAll("[data-preset]").forEach((b) => {
         b.setAttribute("aria-pressed", b === btn ? "true" : "false");
