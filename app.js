@@ -46,6 +46,13 @@
       label: "Bee",
       hint: "Bee - Simulated UV",
     },
+    bat: {
+      lo: 400,
+      hi: 560,
+      label: "Bat",
+      // Nocturnal dichromat: SWS1 (UV–blue) + LWS; low-light, limited color. Not echolocation.
+      hint: "Bat - night dichromat · UV+blue + green-yellow · dim",
+    },
   };
 
   const EM_SEGMENTS = [
@@ -87,7 +94,7 @@
     canFlip: false,
     lo: VIS_MIN,
     hi: VIS_MAX,
-    vision: null, // null | 'snake' | 'cat' | 'bee'
+    vision: null, // null | 'snake' | 'cat' | 'bee' | 'bat'
     frame: 0,
     // work buffer for filter
     work: null,
@@ -326,6 +333,70 @@
   }
 
   /**
+   * Bat eye vision: nocturnal dichromat (SWS1 UV–blue + LWS green–yellow).
+   * Dimmer / flatter than day dichromats; mild UV proxy from blue.
+   * Teaching approx of eyes only — not echolocation, not lab-true.
+   */
+  function filterBat(data) {
+    const sR = 0.08;
+    const sG = 0.16;
+    const sB = 0.76;
+    const lR = 0.28;
+    const lG = 0.64;
+    const lB = 0.08;
+
+    for (let i = 0, n = data.length; i < n; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      // Mild UV proxy (many bats retain short-λ sensitivity)
+      let uv = b * 1.0 - g * 0.32 - r * 0.08;
+      if (uv < 0) uv = 0;
+
+      const S = sR * r + sG * g + sB * b + uv * 0.45;
+      const L = lR * r + lG * g + lB * b;
+
+      // Cool short + muted long; less chroma than snake/cat
+      let or = L * 0.58 + S * 0.1 + uv * 0.22;
+      let og = L * 0.82 + S * 0.16;
+      let ob = S * 1.05 + L * 0.14 + uv * 0.32;
+
+      // Reds collapse (no separate red cone)
+      const redExtra = r - Math.max(g, b);
+      if (redExtra > 0) {
+        const darken = 1 - Math.min(0.58, redExtra * 0.0023);
+        or *= darken;
+        og *= darken * 0.95;
+        ob *= darken * 0.9;
+      }
+
+      // Night-eye feel: pull toward luminance, slightly dim
+      const lum = 0.2126 * or + 0.7152 * og + 0.0722 * ob;
+      const flat = 0.32;
+      or = (or * (1 - flat) + lum * flat) * 0.88;
+      og = (og * (1 - flat) + lum * flat) * 0.88;
+      ob = (ob * (1 - flat) + lum * flat) * 0.9;
+
+      // Soft lift in deep shadows so outdoor night-ish scenes aren't crushed
+      const lift = 8;
+      or += lift;
+      og += lift;
+      ob += lift;
+
+      if (or > 255) or = 255;
+      if (og > 255) og = 255;
+      if (ob > 255) ob = 255;
+      if (or < 0) or = 0;
+      if (og < 0) og = 0;
+      if (ob < 0) ob = 0;
+      data[i] = or | 0;
+      data[i + 1] = og | 0;
+      data[i + 2] = ob | 0;
+    }
+  }
+
+  /**
    * Bee-style: UV–blue–green; reds black. Camera has no UV — use blue excess
    * as a false-color UV proxy (magenta), standard classroom cheat.
    */
@@ -546,6 +617,8 @@
         el.swatchChip.style.background = "rgb(180,80,220)";
       } else if (state.vision === "snake") {
         el.swatchChip.style.background = "rgb(95,145,130)";
+      } else if (state.vision === "bat") {
+        el.swatchChip.style.background = "rgb(70,90,120)";
       } else {
         el.swatchChip.style.background = "rgb(140,160,110)";
       }
@@ -962,6 +1035,8 @@
       filterCat(img.data);
     } else if (state.vision === "snake") {
       filterSnake(img.data);
+    } else if (state.vision === "bat") {
+      filterBat(img.data);
     } else {
       filterImageData(img.data, getFilterParams(lo, hi));
     }
