@@ -599,6 +599,96 @@
         padding-bottom: 0.08rem;
       }
     }
+
+    /*
+     * Phone landscape: column stack leaves only a thin preview strip.
+     * Side-by-side: camera left, chrome right. Portrait rules above unchanged.
+     */
+    @media (orientation: landscape) and (max-height: 520px) {
+      .fit-stage,
+      .fit-stage.fit-stage--fluid {
+        padding:
+          max(0.08rem, env(safe-area-inset-top, 0px))
+          max(0.2rem, env(safe-area-inset-right, 0px))
+          max(0.08rem, env(safe-area-inset-bottom, 0px))
+          max(0.2rem, env(safe-area-inset-left, 0px));
+      }
+
+      .app {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1.35fr) minmax(220px, 1fr);
+        grid-template-rows: auto auto auto auto minmax(0, 1fr);
+        gap: 0.2rem 0.35rem;
+        padding: 0.2rem 0.28rem;
+        align-content: stretch;
+      }
+
+      .app > .preview-wrap {
+        grid-column: 1;
+        grid-row: 1 / -1;
+        flex: none;
+        min-height: 0;
+        height: 100%;
+        align-self: stretch;
+      }
+
+      .app > header.top {
+        grid-column: 2;
+        grid-row: 1;
+        min-height: 0;
+      }
+
+      .app > .readouts {
+        grid-column: 2;
+        grid-row: 2;
+      }
+
+      .app > .spectrum-block {
+        grid-column: 2;
+        grid-row: 3;
+        gap: 0.18rem;
+      }
+
+      .app > .hint {
+        grid-column: 2;
+        grid-row: 4;
+        min-height: 0;
+        font-size: 0.62rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .app > .controls {
+        grid-column: 2;
+        grid-row: 5;
+        align-self: end;
+        min-height: 0;
+        overflow: auto;
+        padding: 0.28rem;
+        gap: 0.25rem;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .spectrum-track {
+        height: 1.55rem;
+      }
+
+      .spectrum-track.vis {
+        height: 2.1rem;
+      }
+
+      .row.slot-row .presets .btn {
+        font-size: 0.55rem;
+        padding-top: 0.28rem;
+        padding-bottom: 0.28rem;
+      }
+
+      .btn {
+        padding-top: 0.32rem;
+        padding-bottom: 0.32rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -743,8 +833,8 @@
     </div>
   </div>
 
-  <script src="fit-to-screen.js?v=30"></script>
-  <script src="app.js?v=30"></script>
+  <script src="fit-to-screen.js?v=31"></script>
+  <script src="app.js?v=31"></script>
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
   </script>
