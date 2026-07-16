@@ -54,6 +54,15 @@
       hint: "Bat - night dichromat · UV+blue + green-yellow · dim",
       swatch: "rgb(70,90,120)",
     },
+    bird: {
+      lo: 400,
+      hi: 700,
+      label: "Bird",
+      // Tetrachromat: UV + blue + green + red — richer than human; UV faked from blue.
+      // Band marker is full visible; UV is filter-only (camera has no UV).
+      hint: "Bird - tetrachromat · UV+full color · richer than human",
+      swatch: "rgb(120,90,200)",
+    },
     // Human color vision deficiency (Viénot-style RGB teaching sims — not clinical).
     deutan: {
       lo: 400,
@@ -420,6 +429,50 @@
       if (or < 0) or = 0;
       if (og < 0) og = 0;
       if (ob < 0) ob = 0;
+      data[i] = or | 0;
+      data[i + 1] = og | 0;
+      data[i + 2] = ob | 0;
+    }
+  }
+
+  /**
+   * Bird eye vision: tetrachromat (UV + blue + green + red).
+   * Reds kept (unlike bee); mild UV proxy; boost chroma vs dichromat animals.
+   * Teaching approx on RGB — not lab-true tetrachromacy.
+   */
+  function filterBird(data) {
+    for (let i = 0, n = data.length; i < n; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      // UV proxy from short-λ excess (classroom cheat; camera has no UV)
+      let uv = b * 1.2 - g * 0.4 - r * 0.12;
+      if (uv < 0) uv = 0;
+
+      // Four-channel rebuild: keep full RGB, push saturation, UV as violet edge
+      let or = r * 1.12 + uv * 0.35;
+      let og = g * 1.08 + b * 0.04;
+      let ob = b * 1.1 + uv * 0.45 + g * 0.05;
+
+      // Expand chroma away from gray (tetrachromat "richer" feel)
+      const lum = 0.2126 * or + 0.7152 * og + 0.0722 * ob;
+      const sat = 1.28;
+      or = lum + (or - lum) * sat;
+      og = lum + (og - lum) * sat;
+      ob = lum + (ob - lum) * sat;
+
+      // Slight lift so outdoor scenes stay bright (day vision)
+      or *= 1.02;
+      og *= 1.02;
+      ob *= 1.02;
+
+      if (or > 255) or = 255;
+      else if (or < 0) or = 0;
+      if (og > 255) og = 255;
+      else if (og < 0) og = 0;
+      if (ob > 255) ob = 255;
+      else if (ob < 0) ob = 0;
       data[i] = or | 0;
       data[i + 1] = og | 0;
       data[i + 2] = ob | 0;
@@ -1158,6 +1211,8 @@
       filterSnake(img.data);
     } else if (state.vision === "bat") {
       filterBat(img.data);
+    } else if (state.vision === "bird") {
+      filterBird(img.data);
     } else if (state.vision === "deutan") {
       filterDeutan(img.data);
     } else if (state.vision === "protan") {
