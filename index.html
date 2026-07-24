@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color:#0a0e14">
 <head>
   <meta charset="UTF-8" />
   <meta
@@ -15,13 +15,41 @@
     content="Camera spectral band filter — slide a visible band and see only that slice of light, placed on the full EM spectrum."
   />
   <title>LightSlice</title>
+  <script>
+    /* iOS A2HS: lock fill height before first paint (Bottom:full bleed cheat sheet).
+       Phone: screen.height > inner → use screen.
+       iPad: screen.* often undershoots inner → add safe-area extra. */
+    (function () {
+      var n = window.navigator;
+      var standalone =
+        n.standalone === true ||
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.matchMedia("(display-mode: fullscreen)").matches;
+      if (!standalone) return;
+      var root = document.documentElement;
+      root.classList.add("pwa-standalone");
+      var iw = window.innerWidth || 0;
+      var ih = window.innerHeight || 0;
+      var sw = window.screen.width || 0;
+      var sh = window.screen.height || 0;
+      var screenMax = Math.max(sw, sh);
+      var screenMin = Math.min(sw, sh);
+      var fillH = ih >= iw ? Math.max(ih, screenMax) : Math.max(ih, screenMin);
+      var extra = 0;
+      if (Math.min(iw, ih) >= 600 && screenMax < ih - 10) {
+        extra = 20;
+      }
+      root.style.setProperty("--pwa-fill-h", fillH + "px");
+      root.style.setProperty("--pwa-extra-b", extra + "px");
+    })();
+  </script>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="apple-touch-icon.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Michroma&display=swap"
     rel="stylesheet"
   />
   <style>
@@ -42,6 +70,8 @@
       --text-ui: clamp(0.62rem, 1.55vmin, 0.72rem);
       --text-value: clamp(0.85rem, 2.2vmin, 1.05rem);
       --text-label: clamp(0.55rem, 1.35vmin, 0.65rem);
+      /* Extra under bottom card: negative lowers, positive raises (phone PWA / iPad) */
+      --dock-lift: 0px;
     }
 
     * {
@@ -52,7 +82,8 @@
 
     html {
       height: 100%;
-      height: 100dvh;
+      min-height: 100%;
+      min-height: -webkit-fill-available;
       overflow: hidden;
       background: var(--bg);
       -webkit-text-size-adjust: 100%;
@@ -61,8 +92,8 @@
 
     body {
       height: 100%;
-      height: 100dvh;
-      min-height: 100dvh;
+      min-height: 100%;
+      min-height: -webkit-fill-available;
       overflow: hidden;
       font-family: "IBM Plex Sans", system-ui, sans-serif;
       background: var(--bg);
@@ -72,21 +103,39 @@
       user-select: none;
     }
 
+    /* Desktop card: safe-area on stage. Fluid phone/tablet overrides below. */
     .fit-stage {
       position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
-      height: 100dvh;
       overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
+      background: var(--bg);
       padding:
         max(0.2rem, env(safe-area-inset-top))
         max(0.35rem, env(safe-area-inset-right))
         max(0.2rem, env(safe-area-inset-bottom))
         max(0.35rem, env(safe-area-inset-left));
+    }
+
+    /* Home-screen PWA: lock to screen height (Bug B — env() overshoot alone fails). */
+    html.pwa-standalone,
+    html.pwa-standalone body {
+      height: calc(var(--pwa-fill-h, 100%) + var(--pwa-extra-b, 0px));
+      min-height: calc(var(--pwa-fill-h, 100%) + var(--pwa-extra-b, 0px));
+    }
+
+    html.pwa-standalone .fit-stage,
+    html.pwa-standalone .fit-stage.fit-stage--fluid {
+      top: 0;
+      right: 0;
+      bottom: auto;
+      left: 0;
+      width: 100%;
+      height: calc(var(--pwa-fill-h, 100%) + var(--pwa-extra-b, 0px));
     }
 
     .fit-stage.fit-stage--fluid {
@@ -130,56 +179,20 @@
     header.top {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: center;
       gap: 0.5rem;
       min-height: 2.1rem;
+      transform: translateY(-3px);
     }
 
     .brand h1 {
+      font-family: "Michroma", "IBM Plex Sans", system-ui, sans-serif;
       font-size: var(--text-title);
-      font-weight: 700;
-      letter-spacing: 0.02em;
+      font-weight: 400;
+      letter-spacing: 0.04em;
       line-height: 1.1;
-    }
-
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: var(--text-ui);
-      color: var(--muted);
-      padding: 0.28rem 0.55rem;
-      border-radius: 999px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      white-space: nowrap;
-    }
-
-    .status::before {
-      content: "";
-      width: 0.45rem;
-      height: 0.45rem;
-      border-radius: 50%;
-      background: var(--muted);
-      flex-shrink: 0;
-    }
-
-    .status[data-state="live"] {
-      color: var(--live);
-      border-color: rgba(74, 222, 128, 0.25);
-    }
-
-    .status[data-state="live"]::before {
-      background: var(--live);
-      box-shadow: 0 0 8px rgba(74, 222, 128, 0.7);
-    }
-
-    .status[data-state="err"] {
-      color: var(--danger);
-    }
-
-    .status[data-state="err"]::before {
-      background: var(--danger);
+      text-align: center;
+      text-transform: uppercase;
     }
 
     .readouts {
@@ -515,9 +528,9 @@
 
     /*
      * Full-bleed fluid layout: phones + tablets (iPad, etc.).
-     * iPads are often 834–1180px wide — they were treated as "desktop card"
-     * (fixed 720px, scale ≤1) which left huge empty borders (~half the screen).
-     * Mac/PC with fine pointer + hover keep the centered 720 card below.
+     * Stage paints edge-to-edge (no top/bottom pad → no grey notch strip).
+     * Safe-area lives on header (top) + controls (bottom). Preview flexes.
+     * Mac/PC with fine pointer + hover keep the centered 720 card above.
      */
     @media (max-width: 767px),
       ((max-width: 1366px) and (hover: none)),
@@ -528,14 +541,11 @@
         inset: 0;
         align-items: stretch;
         justify-content: stretch;
+        /* Prefer edge stretch — do NOT use max-height:100dvh (undershoots iOS). */
         width: auto;
         height: auto;
-        padding:
-          max(0.12rem, env(safe-area-inset-top, 0px))
-          max(0.3rem, env(safe-area-inset-right, 0px))
-          /* Tight under bottom card; keep home-indicator safe area only */
-          env(safe-area-inset-bottom, 0px)
-          max(0.3rem, env(safe-area-inset-left, 0px));
+        padding: 0;
+        background: var(--bg);
       }
 
       .app {
@@ -544,29 +554,44 @@
         max-width: none !important;
         max-height: none !important;
         border-radius: 0;
-        padding: 0.28rem 0.38rem 0;
+        /* Safe-area OUTSIDE the bottom card so rounded corners stay on-screen.
+           --dock-lift: phone PWA −10px, iPad +10px (see rules below). */
+        padding: 0 max(0.3rem, env(safe-area-inset-right, 0px))
+          max(0px, calc(max(0.22rem, env(safe-area-inset-bottom, 0px)) + var(--dock-lift, 0px)))
+          max(0.3rem, env(safe-area-inset-left, 0px));
         gap: 0.25rem;
         display: flex;
         flex-direction: column;
         transform: none !important;
         will-change: auto;
+        background: radial-gradient(120% 80% at 50% 0%, #121a28 0%, var(--bg) 55%);
       }
 
-      .app > header.top,
+      /* Notch: pad content, keep app paint under status bar / island */
+      .app > header.top {
+        flex: 0 0 auto;
+        padding-top: max(0.28rem, env(safe-area-inset-top, 0px));
+        min-height: 0;
+      }
+
       .app > .readouts,
       .app > .spectrum-block,
-      .app > .hint,
-      .app > .controls {
+      .app > .hint {
         flex: 0 0 auto;
       }
 
+      /* Camera grows into leftover space above the docked bottom card */
       .app > .preview-wrap {
         flex: 1 1 auto;
         min-height: 0;
       }
 
+      /* Full rounded card sits above home-indicator inset (not flush-clipped) */
       .app > .controls {
-        padding: 0.36rem 0.36rem 0.12rem;
+        flex: 0 0 auto;
+        margin-top: 0;
+        border-radius: 12px;
+        padding: 0.36rem;
       }
 
       .row.primary-row .modes {
@@ -584,45 +609,47 @@
       }
     }
 
-    @media ((max-width: 767px) and (display-mode: standalone)),
-      ((max-width: 1366px) and (hover: none) and (display-mode: standalone)),
-      ((max-width: 1366px) and (pointer: coarse) and (display-mode: standalone)) {
-      .fit-stage {
-        padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* Phone PWA: lower card 10px. iPad/tablet: raise 10px (corners were just off). */
+    @media (max-width: 767px) {
+      html.pwa-standalone {
+        --dock-lift: -10px;
       }
+    }
 
-      .app {
-        padding-bottom: 0;
-      }
-
-      .app > .controls {
-        padding-bottom: 0.08rem;
+    @media (min-width: 768px) and (max-width: 1366px) and (hover: none),
+      (min-width: 768px) and (max-width: 1366px) and (pointer: coarse) {
+      :root,
+      html.pwa-standalone {
+        --dock-lift: 10px;
       }
     }
 
     /*
-     * Phone landscape: column stack leaves only a thin preview strip.
-     * Side-by-side: camera left, chrome right. Portrait rules above unchanged.
+     * Phone landscape: camera on notch side, chrome opposite.
+     * CRITICAL: chrome must NOT use env(safe-area-inset-left/right) — when the
+     * phone is flipped those values are the notch (~5/16″+) and show up as
+     * empty space to the right of the stats. Tiny fixed pad only.
      */
-    @media (orientation: landscape) and (max-height: 520px) {
+    @media (orientation: landscape) and (max-height: 600px) {
       .fit-stage,
       .fit-stage.fit-stage--fluid {
-        padding:
-          max(0.08rem, env(safe-area-inset-top, 0px))
-          max(0.2rem, env(safe-area-inset-right, 0px))
-          max(0.08rem, env(safe-area-inset-bottom, 0px))
-          max(0.2rem, env(safe-area-inset-left, 0px));
+        padding: 0;
       }
 
-      .app {
+      .app,
+      html.pwa-standalone .app {
         display: grid !important;
-        grid-template-columns: minmax(0, 1.35fr) minmax(220px, 1fr);
+        grid-template-columns: minmax(0, 1.35fr) minmax(200px, 1fr);
         grid-template-rows: auto auto auto auto minmax(0, 1fr);
-        gap: 0.2rem 0.35rem;
-        padding: 0.2rem 0.28rem;
+        gap: 0.14rem 0.25rem;
+        padding: 0 !important;
         align-content: stretch;
+        align-items: stretch;
+        /* Outer chrome clearance — +5px from edge */
+        --land-chrome-out: calc(0.2rem + 5px);
       }
 
+      /* Notch-left (default): camera | chrome */
       .app > .preview-wrap {
         grid-column: 1;
         grid-row: 1 / -1;
@@ -630,23 +657,34 @@
         min-height: 0;
         height: 100%;
         align-self: stretch;
+        border-radius: 0 10px 10px 0;
+        border-left: none;
+        margin: 0;
+        /* Pull under the notch / island */
+        margin-left: calc(-1 * env(safe-area-inset-left, 0px));
+        width: calc(100% + env(safe-area-inset-left, 0px));
+        max-width: none;
       }
 
       .app > header.top {
         grid-column: 2;
         grid-row: 1;
         min-height: 0;
+        padding-top: max(0.12rem, env(safe-area-inset-top, 0px));
+        padding-right: var(--land-chrome-out);
       }
 
       .app > .readouts {
         grid-column: 2;
         grid-row: 2;
+        padding-right: var(--land-chrome-out);
       }
 
       .app > .spectrum-block {
         grid-column: 2;
         grid-row: 3;
-        gap: 0.18rem;
+        gap: 0.12rem;
+        padding-right: var(--land-chrome-out);
       }
 
       .app > .hint {
@@ -657,6 +695,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        padding-right: var(--land-chrome-out);
       }
 
       .app > .controls {
@@ -665,28 +704,67 @@
         align-self: end;
         min-height: 0;
         overflow: auto;
-        padding: 0.28rem;
-        gap: 0.25rem;
+        padding: 0.22rem;
+        gap: 0.18rem;
+        border-radius: 12px;
+        margin-right: var(--land-chrome-out);
+        margin-bottom: max(0.12rem, env(safe-area-inset-bottom, 0px));
         -webkit-overflow-scrolling: touch;
       }
 
+      /* Flipped: notch on right → chrome | camera */
+      html[data-land-notch="right"] .app {
+        grid-template-columns: minmax(200px, 1fr) minmax(0, 1.35fr);
+      }
+
+      html[data-land-notch="right"] .app > .preview-wrap {
+        grid-column: 2;
+        border-radius: 10px 0 0 10px;
+        border-left: 1px solid var(--border);
+        border-right: none;
+        margin: 0;
+        margin-left: 0;
+        margin-right: calc(-1 * env(safe-area-inset-right, 0px));
+        width: calc(100% + env(safe-area-inset-right, 0px));
+      }
+
+      html[data-land-notch="right"] .app > header.top {
+        grid-column: 1;
+        padding-right: 0;
+        padding-left: var(--land-chrome-out);
+      }
+
+      html[data-land-notch="right"] .app > .readouts,
+      html[data-land-notch="right"] .app > .spectrum-block,
+      html[data-land-notch="right"] .app > .hint {
+        grid-column: 1;
+        padding-right: 0;
+        padding-left: var(--land-chrome-out);
+      }
+
+      html[data-land-notch="right"] .app > .controls {
+        grid-column: 1;
+        margin-right: 0;
+        margin-left: var(--land-chrome-out);
+      }
+
       .spectrum-track {
-        height: 1.55rem;
+        height: 1.45rem;
       }
 
       .spectrum-track.vis {
-        height: 2.1rem;
+        height: 1.95rem;
       }
 
       .row.slot-row .presets .btn {
         font-size: 0.55rem;
-        padding-top: 0.28rem;
-        padding-bottom: 0.28rem;
+        padding-top: 0.24rem;
+        padding-bottom: 0.24rem;
       }
 
       .btn {
-        padding-top: 0.32rem;
-        padding-bottom: 0.32rem;
+        padding-top: 0.28rem;
+        padding-bottom: 0.28rem;
       }
     }
   </style>
@@ -698,7 +776,6 @@
         <div class="brand">
           <h1>LightSlice</h1>
         </div>
-        <div class="status" id="status">Camera off</div>
       </header>
 
       <div class="readouts">
@@ -754,7 +831,7 @@
         <div class="row modes-presets primary-row">
           <div class="modes">
             <button type="button" class="btn btn-primary" id="start-btn" data-state="off">Start camera</button>
-            <button type="button" class="btn btn-ghost" id="flip-btn" disabled title="Switch camera">Flip</button>
+            <button type="button" class="btn btn-ghost" id="flip-btn" disabled title="Switch to front camera">Front</button>
             <button type="button" class="btn btn-ghost" id="btn-full" title="Full visible band 400–700 nm">Full</button>
           </div>
           <div class="presets" role="group" aria-label="Band presets ROYGBIV">
@@ -833,8 +910,8 @@
     </div>
   </div>
 
-  <script src="fit-to-screen.js?v=31"></script>
-  <script src="app.js?v=31"></script>
+  <script src="fit-to-screen.js?v=50"></script>
+  <script src="app.js?v=50"></script>
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
   </script>

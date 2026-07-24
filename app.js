@@ -107,7 +107,6 @@
   const el = {
     stage: document.getElementById("fit-stage"),
     app: document.getElementById("app"),
-    status: document.getElementById("status"),
     hint: document.getElementById("hint"),
     startBtn: document.getElementById("start-btn"),
     flipBtn: document.getElementById("flip-btn"),
@@ -1289,15 +1288,16 @@
     el.video.srcObject = null;
   }
 
-  function setStatus(text, name) {
-    el.status.textContent = text;
-    if (name) el.status.dataset.state = name;
-    else delete el.status.dataset.state;
+  function updateFlipBtnLabel(isUser) {
+    if (!el.flipBtn) return;
+    // Label = the camera you are NOT on (tap to switch there)
+    const next = isUser ? "Rear" : "Front";
+    el.flipBtn.textContent = next;
+    el.flipBtn.title = `Switch to ${next.toLowerCase()} camera`;
   }
 
   async function startCamera() {
     try {
-      setStatus("Requesting…");
       el.hint.textContent = "Allow camera access when prompted";
       const stream = await openCamera(state.facing);
       stopStream();
@@ -1311,30 +1311,32 @@
       const settings = track?.getSettings?.() || {};
       const isUser =
         settings.facingMode === "user" || state.facing === "user";
+      // Keep facing in sync with what we actually got
+      state.facing = isUser ? "user" : "environment";
       el.video.classList.toggle("mirror", !!isUser);
 
       const cams = await listVideoInputs();
       state.canFlip = cams.length > 1;
-      el.flipBtn.disabled = !state.canFlip;
+      if (el.flipBtn) el.flipBtn.disabled = !state.canFlip;
+      updateFlipBtnLabel(isUser);
 
       state.running = true;
       el.startBtn.dataset.state = "on";
       el.startBtn.textContent = "Stop";
-      setStatus(isUser ? "Front cam" : "Rear cam", "live");
       el.hint.innerHTML =
         'Live view through your band · drag the <span class="hint-white">visible strip</span>';
       if (!state.frame) loop();
     } catch (err) {
       console.error(err);
       state.running = false;
-      setStatus("No camera", "err");
       el.hint.textContent =
         err?.name === "NotAllowedError"
           ? "Camera permission denied — enable in browser settings"
           : "Camera unavailable on this device/browser";
       el.startBtn.dataset.state = "off";
       el.startBtn.textContent = "Start camera";
-      el.flipBtn.disabled = true;
+      if (el.flipBtn) el.flipBtn.disabled = true;
+      updateFlipBtnLabel(state.facing === "user");
     }
   }
 
@@ -1343,8 +1345,8 @@
     stopStream();
     el.startBtn.dataset.state = "off";
     el.startBtn.textContent = "Start camera";
-    el.flipBtn.disabled = true;
-    setStatus("Camera off");
+    if (el.flipBtn) el.flipBtn.disabled = true;
+    updateFlipBtnLabel(state.facing === "user");
     el.hint.innerHTML =
       'Drag the <span class="hint-white">visible strip</span> · Full or ROYGBIV presets';
     processFrame();
@@ -1363,7 +1365,7 @@
     else startCamera();
   });
 
-  el.flipBtn.addEventListener("click", () => flipCamera());
+  el.flipBtn?.addEventListener("click", () => flipCamera());
 
   el.btnFull.addEventListener("click", () => {
     setBand(VIS_MIN, VIS_MAX);
@@ -1421,15 +1423,117 @@
     return !(isDesktopPointer() && window.innerWidth > 767);
   }
 
+  function isStandaloneShell() {
+    return (
+      (typeof window.matchMedia === "function" &&
+        (window.matchMedia("(display-mode: standalone)").matches ||
+          window.matchMedia("(display-mode: fullscreen)").matches)) ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function readSafeInset(side) {
+    const cssPad = {
+      top: "paddingTop",
+      right: "paddingRight",
+      bottom: "paddingBottom",
+      left: "paddingLeft",
+    }[side];
+    if (!cssPad) return 0;
+    const probe = document.createElement("div");
+    probe.style.cssText = `position:fixed;visibility:hidden;pointer-events:none;padding-${side}:env(safe-area-inset-${side},0px)`;
+    document.body.appendChild(probe);
+    const out = parseFloat(getComputedStyle(probe)[cssPad]) || 0;
+    probe.remove();
+    return out;
+  }
+
+  function readSafeInsetBottom() {
+    return readSafeInset("bottom");
+  }
+
   /**
-   * Phone/tablet: pin stage to the visible edges (AudioSlice twin).
+   * Phone landscape: put camera on the notch side (left or flipped-right).
+   * Preview CSS full-bleeds to that edge + bottom of screen.
+   */
+  function isPhoneLandscape() {
+    return (
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(orientation: landscape) and (max-height: 600px)").matches
+    );
+  }
+
+  function syncLandscapeNotch() {
+    const root = document.documentElement;
+    if (!isPhoneLandscape()) {
+      root.removeAttribute("data-land-notch");
+      return;
+    }
+    const left = readSafeInset("left");
+    const right = readSafeInset("right");
+    let side;
+    if (right > left + 4) side = "right";
+    else if (left > right + 4) side = "left";
+    else {
+      // Fallback when insets equal/zero: iOS angle 90 ≈ notch left, -90/270 ≈ notch right
+      const angle =
+        (window.screen && window.screen.orientation && window.screen.orientation.angle) ||
+        window.orientation ||
+        0;
+      side = angle === -90 || angle === 270 ? "right" : "left";
+    }
+    root.setAttribute("data-land-notch", side);
+  }
+
+  /** Phone PWA: screen taller than short innerHeight → fill to screen (Bug B). */
+  function pwaFillHeightPx() {
+    const iw = window.innerWidth || 0;
+    const ih = window.innerHeight || 0;
+    const sw = window.screen.width || 0;
+    const sh = window.screen.height || 0;
+    if (ih >= iw) return Math.max(ih, Math.max(sw, sh));
+    return Math.max(ih, Math.min(sw, sh));
+  }
+
+  function pwaExtraBottomPx() {
+    const iw = window.innerWidth || 0;
+    const ih = window.innerHeight || 0;
+    const sw = window.screen.width || 0;
+    const sh = window.screen.height || 0;
+    const screenMax = Math.max(sw, sh);
+    if (Math.min(iw, ih) < 600) return 0;
+    if (screenMax >= ih - 10) return 0;
+    return Math.max(readSafeInsetBottom(), 20);
+  }
+
+  function syncPwaFillHeight() {
+    const root = document.documentElement;
+    if (!isStandaloneShell()) {
+      root.classList.remove("pwa-standalone");
+      root.style.removeProperty("--pwa-fill-h");
+      root.style.removeProperty("--pwa-extra-b");
+      return 0;
+    }
+    root.classList.add("pwa-standalone");
+    const fillH = pwaFillHeightPx();
+    const extra = pwaExtraBottomPx();
+    root.style.setProperty("--pwa-fill-h", `${fillH}px`);
+    root.style.setProperty("--pwa-extra-b", `${extra}px`);
+    return fillH + extra;
+  }
+
+  /**
+   * Phone/tablet: pin stage to the visible edges (AudioSlice twin + PWA fillH).
    * FitToScreen can leave visualViewport top/left/width/height inline styles
    * that shove the app left and below the screen; edge-pin clears that.
+   * Never size the stage from a short innerHeight alone — that lifts the bottom card.
    */
   function pinPhoneFill() {
     const stage = el.stage;
     const app = el.app;
     if (!stage || !app) return;
+
+    syncLandscapeNotch();
 
     if (!usesFluidFill()) {
       stage.classList.remove("fit-stage--fluid");
@@ -1449,18 +1553,40 @@
     }
 
     const vv = window.visualViewport;
-    const standalone =
-      (typeof window.matchMedia === "function" &&
-        window.matchMedia("(display-mode: standalone)").matches) ||
-      window.navigator.standalone === true;
+    const standalone = isStandaloneShell();
+    const fillTotal = syncPwaFillHeight();
 
     stage.classList.add("fit-stage--fluid");
     stage.style.position = "fixed";
     stage.style.width = "";
     stage.style.height = "";
 
-    if (!standalone && vv && vv.height > 40 && vv.width > 40) {
-      // Safari tab: visible area only (URL bar)
+    /*
+     * Phone landscape: always pin to all four edges.
+     * visualViewport height often undershoots the screen by ~¼–⅜″ — dead strip
+     * under the chrome column (camera is black so it hides the same shortfall).
+     * Flipped orientation makes that chrome-side gap obvious (~5/16″).
+     */
+    if (isPhoneLandscape()) {
+      stage.style.top = "0";
+      stage.style.left = "0";
+      stage.style.right = "0";
+      stage.style.bottom = "0";
+      stage.style.width = "";
+      stage.style.height = "";
+    } else if (standalone) {
+      // PWA portrait: stretch to locked screen height — bottom card on the floor
+      stage.style.top = "0";
+      stage.style.left = "0";
+      stage.style.right = "0";
+      stage.style.bottom = "auto";
+      stage.style.width = "100%";
+      stage.style.height =
+        fillTotal > 0
+          ? `${fillTotal}px`
+          : "calc(var(--pwa-fill-h, 100%) + var(--pwa-extra-b, 0px))";
+    } else if (vv && vv.height > 40 && vv.width > 40) {
+      // Safari tab portrait: visible area only (URL bar)
       stage.style.top = `${Math.round(vv.offsetTop) || 0}px`;
       stage.style.left = `${Math.round(vv.offsetLeft) || 0}px`;
       stage.style.width = `${Math.round(vv.width)}px`;
@@ -1468,7 +1594,6 @@
       stage.style.right = "auto";
       stage.style.bottom = "auto";
     } else {
-      // PWA / full phone: stretch to every edge
       stage.style.top = "0";
       stage.style.left = "0";
       stage.style.right = "0";
@@ -1504,6 +1629,7 @@
   }
 
   // Open: edge-fill before/after boot so we never flash a misplaced 720 card
+  syncPwaFillHeight();
   pinPhoneFill();
   fit.bindViewportListeners();
   fit.bootLayout().then(() => {
@@ -1514,6 +1640,7 @@
 
   window.addEventListener("resize", onResize);
   window.visualViewport?.addEventListener("resize", onResize);
+  window.addEventListener("pageshow", onResize);
   window.addEventListener("orientationchange", () => {
     pinPhoneFill();
     setTimeout(pinPhoneFill, 200);
@@ -1522,9 +1649,10 @@
       drawSpectra();
     }, 450);
   });
+  setTimeout(pinPhoneFill, 100);
+  setTimeout(pinPhoneFill, 400);
 
   if (!window.isSecureContext) {
-    setStatus("Needs HTTPS", "err");
     el.hint.textContent = "Camera requires HTTPS or localhost";
   }
 })();
