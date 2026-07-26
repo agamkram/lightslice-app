@@ -1,0 +1,21 @@
+{
+  "name": "LightSlice",
+  "short_name": "LightSlice",
+  "description": "Camera spectral band filter — slide a visible band and see only that slice on the full EM spectrum",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e14",
+  "theme_color": "#0a0e14",
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
