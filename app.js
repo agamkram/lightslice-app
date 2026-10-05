@@ -235,18 +235,12 @@
       if (b <= a) return 0;
       return (b - a) / Math.max(1, p1 - p0);
     }
-    // Approx camera primaries (nm)
-    let wr = overlap(lo, hi, 580, 700) + 0.35 * overlap(lo, hi, 560, 580);
-    let wg = overlap(lo, hi, 490, 610);
-    let wb = overlap(lo, hi, 400, 510) + 0.35 * overlap(lo, hi, 510, 530);
-    // Narrow band that misses coarse bins: fall back to center color
-    const sum = wr + wg + wb;
-    if (sum < 0.04) {
-      const c = wavelengthToRgb((lo + hi) / 2);
-      wr = c.r / 255;
-      wg = c.g / 255;
-      wb = c.b / 255;
-    }
+    // Approx camera primaries (nm). A very narrow band overlaps these bins
+    // only a little; leave that small. Substituting the center color here
+    // tints the whole frame, including colors the band should cut.
+    const wr = overlap(lo, hi, 580, 700) + 0.35 * overlap(lo, hi, 560, 580);
+    const wg = overlap(lo, hi, 490, 610);
+    const wb = overlap(lo, hi, 400, 510) + 0.35 * overlap(lo, hi, 510, 530);
     return { wr, wg, wb };
   }
 
@@ -603,6 +597,15 @@
     }
   }
 
+  /** Soft pass at one wavelength: 1 inside the band, gaussian outside. */
+  function bandGate(nm, lo, hi, invTwoSig2) {
+    if (nm < VIS_MIN) nm = VIS_MIN;
+    else if (nm > VIS_MAX) nm = VIS_MAX;
+    if (nm >= lo && nm <= hi) return 1;
+    const dd = nm < lo ? lo - nm : nm - hi;
+    return Math.exp(-dd * dd * invTwoSig2);
+  }
+
   /**
    * In-place continuous bandpass on ImageData (no per-pixel allocations).
    * Same model as before — tuned for older CPUs.
@@ -643,6 +646,7 @@
 
       // hue → nm (only when saturated enough to matter)
       let gate = bandFrac; // default: treat low-chroma as broadband
+      let gateOnly = false;
       if (s >= 0.08) {
         let h = 0;
         if (dlt !== 0) {
@@ -651,25 +655,26 @@
           else h = ((r - g) / dlt + 4) / 6;
         }
         const hue = h * 360;
-        let nm;
-        if (hue < 15 || hue >= 345) nm = 665;
-        else if (hue < 40) nm = 620 - ((hue - 15) / 25) * 30;
-        else if (hue < 55) nm = 590 - ((hue - 40) / 15) * 15;
-        else if (hue < 90) nm = 575 - ((hue - 55) / 35) * 35;
-        else if (hue < 150) nm = 540 - ((hue - 90) / 60) * 45;
-        else if (hue < 200) nm = 495 - ((hue - 150) / 50) * 35;
-        else if (hue < 260) nm = 460 - ((hue - 200) / 60) * 40;
-        else if (hue < 290) nm = 420 - ((hue - 260) / 30) * 15;
-        else nm = 405 + ((hue - 290) / 55) * 260;
-
-        if (nm < VIS_MIN) nm = VIS_MIN;
-        else if (nm > VIS_MAX) nm = VIS_MAX;
-
-        if (nm >= lo && nm <= hi) {
-          gate = 1;
+        // Purple has no wavelength. It is a mix of the violet and red ends,
+        // so a green band must not treat it as green.
+        if (hue >= 290 && hue < 345) {
+          const t = (hue - 290) / 55;
+          const gV = bandGate(405, lo, hi, invTwoSig2);
+          const gR = bandGate(665, lo, hi, invTwoSig2);
+          gate = gV * (1 - t) + gR * t;
+          // Coarse R/G/B overlap cannot tell purple from green. The mix above is the pass.
+          gateOnly = true;
         } else {
-          const dd = nm < lo ? lo - nm : nm - hi;
-          gate = Math.exp(-dd * dd * invTwoSig2);
+          let nm;
+          if (hue < 15 || hue >= 345) nm = 665;
+          else if (hue < 40) nm = 620 - ((hue - 15) / 25) * 30;
+          else if (hue < 55) nm = 590 - ((hue - 40) / 15) * 15;
+          else if (hue < 90) nm = 575 - ((hue - 55) / 35) * 35;
+          else if (hue < 150) nm = 540 - ((hue - 90) / 60) * 45;
+          else if (hue < 200) nm = 495 - ((hue - 150) / 50) * 35;
+          else if (hue < 260) nm = 460 - ((hue - 200) / 60) * 40;
+          else nm = 420 - ((hue - 260) / 30) * 15;
+          gate = bandGate(nm, lo, hi, invTwoSig2);
         }
       }
 
@@ -677,9 +682,10 @@
       const eRgbN = eRgb * 0.00392156862745098;
       const eHue = lumN * gate;
       const eWhite = lumN * bandFrac;
-      const energy =
-        (1 - s) * (0.55 * eWhite + 0.45 * eRgbN) +
-        s * (0.5 * eHue + 0.5 * eRgbN);
+      const energy = gateOnly
+        ? lumN * gate
+        : (1 - s) * (0.55 * eWhite + 0.45 * eRgbN) +
+          s * (0.5 * eHue + 0.5 * eRgbN);
 
       let e = energy * gain;
       if (e > 1.25) e = 1.25;
