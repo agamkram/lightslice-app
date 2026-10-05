@@ -909,11 +909,13 @@
     ctx.fillStyle = "rgba(250,204,21,0.12)";
     ctx.fillRect(x0, 0, Math.max(1, x1 - x0), h);
 
-    // Handles: left = hi (long/red), right = lo (short/violet)
-    const handleW = 5;
+    // Handles: left = hi (long/red), right = lo (short/violet).
+    // Keep the full grip inside the strip so an end handle is not clipped.
+    const handleW = 8;
+    const placeHandle = (x) => clamp(x - handleW / 2, 0, Math.max(0, w - handleW));
     ctx.fillStyle = "rgba(250,204,21,0.95)";
-    ctx.fillRect(x0 - handleW / 2, 0, handleW, h);
-    ctx.fillRect(x1 - handleW / 2, 0, handleW, h);
+    ctx.fillRect(placeHandle(x0), 0, handleW, h);
+    ctx.fillRect(placeHandle(x1), 0, handleW, h);
 
     // center line
     const xc = (x0 + x1) / 2;
@@ -927,7 +929,8 @@
     // grip ticks on handles
     ctx.fillStyle = "rgba(6,16,24,0.7)";
     for (const x of [x0, x1]) {
-      ctx.fillRect(x - 0.5, h * 0.3, 1, h * 0.4);
+      const hx = placeHandle(x) + handleW / 2;
+      ctx.fillRect(hx - 0.5, h * 0.3, 1, h * 0.4);
     }
 
     // Orientation labels — match full EM (red by IR side / left)
@@ -935,9 +938,9 @@
     ctx.textBaseline = "bottom";
     ctx.fillStyle = "rgba(255,255,255,0.9)";
     ctx.textAlign = "left";
-    ctx.fillText("red 700", 4, h - 3);
+    ctx.fillText("red 700", handleW + 4, h - 3);
     ctx.textAlign = "right";
-    ctx.fillText("violet 400", w - 4, h - 3);
+    ctx.fillText("violet 400", w - handleW - 4, h - 3);
   }
 
   function emLayout(width) {
@@ -1033,14 +1036,20 @@
    */
   function hitZone(clientX) {
     const rect = el.visTrack.getBoundingClientRect();
-    const x = clamp(clientX - rect.left, 0, rect.width);
     const w = rect.width || 1;
+    const raw = clientX - rect.left;
+    // Side margin belongs to the end handle parked on that side.
+    if (raw < 0) return "long";
+    if (raw > w) return "short";
+    const x = raw;
     const xLong = visX(state.hi, w); // LEFT handle
     const xShort = visX(state.lo, w); // RIGHT handle
     const left = Math.min(xLong, xShort);
     const right = Math.max(xLong, xShort);
     const span = right - left;
-    const edge = Math.max(16, Math.min(span * 0.3 || 16, w * 0.045));
+    // Phone strip is ~360px, so 4.5% is only ~16px. Floor at 24 so the ends
+    // are a bit easier to grab without widening the target on a wide desktop.
+    const edge = Math.max(24, Math.min(span * 0.3 || 24, w * 0.045));
 
     if (Math.abs(x - xLong) <= edge) return "long";
     if (Math.abs(x - xShort) <= edge) return "short";

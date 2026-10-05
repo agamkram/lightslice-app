@@ -341,9 +341,11 @@
       height: 2.35rem;
       touch-action: none;
       cursor: ew-resize;
-      /* 10px each side so end handles sit in from the screen edge */
+      /* 10px each side so end handles sit in from the screen edge.
+         Visible so the hit target can use that margin. */
       margin-left: 10px;
       margin-right: 10px;
+      overflow: visible;
     }
 
     .spectrum-track canvas {
@@ -356,7 +358,10 @@
 
     #vis-hit {
       position: absolute;
-      inset: 0;
+      top: 0;
+      bottom: 0;
+      left: -10px;
+      right: -10px;
       z-index: 2;
       touch-action: none;
       cursor: ew-resize;
@@ -928,7 +933,7 @@
   </div>
 
   <script src="fit-to-screen.js?v=51"></script>
-  <script src="app.js?v=54"></script>
+  <script src="app.js?v=55"></script>
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
   </script>
