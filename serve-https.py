@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Serve LightSlice over HTTPS for Mac and phone preview."""
-# --- preview-ctl guard v2: begin ---
-# Managed by ~/bin/preview-ctl.py. Two hazards this removes:
+# --- preview-ctl guard v3: begin ---
+# Managed by ~/bin/preview-ctl.py. Three hazards this removes:
 #   1. The launching terminal can go away while the server runs on. Writing an
 #      access-log line to a dead pipe would raise mid-response and leave the
 #      port open and silent. Make stdio unable to raise.
 #   2. A browser or phone that walks away mid-response is normal, not an error.
 #      Left alone it writes a traceback per disconnect into the log.
+#   3. TLS on the listening socket puts the handshake inside accept() on the
+#      main thread. One client that opens a socket and never sends a
+#      ClientHello then stops the whole server: it accepts and answers
+#      nothing. Hand the handshake to the worker thread, where the handler's
+#      timeout can end it.
+import socket as _pc_socket
 import socketserver as _pc_ss
 import ssl as _pc_ssl
 import sys as _pc_sys
@@ -49,6 +55,7 @@ _PC_QUIET_ERRORS = (
     ConnectionResetError,
     ConnectionAbortedError,
     TimeoutError,
+    _pc_socket.timeout,
     _pc_ssl.SSLError,
 )
 _pc_handle_error = _pc_ss.BaseServer.handle_error
@@ -61,7 +68,26 @@ def _pc_quiet_handle_error(self, request, client_address):
 
 
 _pc_ss.BaseServer.handle_error = _pc_quiet_handle_error
-# --- preview-ctl guard v2: end ---
+
+_pc_wrap_socket = _pc_ssl.SSLContext.wrap_socket
+
+
+def _pc_lazy_wrap(self, sock, server_side=False, do_handshake_on_connect=True,
+                  *args, **kwargs):
+    """Never shake hands on the thread that calls accept()."""
+    if server_side:
+        do_handshake_on_connect = False
+    return _pc_wrap_socket(
+        self, sock, server_side, do_handshake_on_connect, *args, **kwargs
+    )
+
+
+_pc_ssl.SSLContext.wrap_socket = _pc_lazy_wrap
+
+# A deferred handshake runs on the first read, so the read needs a deadline.
+if _pc_ss.StreamRequestHandler.timeout is None:
+    _pc_ss.StreamRequestHandler.timeout = 20
+# --- preview-ctl guard v3: end ---
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 import os
