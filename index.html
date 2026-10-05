@@ -341,6 +341,9 @@
       height: 2.35rem;
       touch-action: none;
       cursor: ew-resize;
+      /* 10px each side so end handles sit in from the screen edge */
+      margin-left: 10px;
+      margin-right: 10px;
     }
 
     .spectrum-track canvas {
@@ -925,7 +928,7 @@
   </div>
 
   <script src="fit-to-screen.js?v=51"></script>
-  <script src="app.js?v=51"></script>
+  <script src="app.js?v=52"></script>
   <script>
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
   </script>

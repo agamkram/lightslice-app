@@ -101,7 +101,7 @@
     { id: "vis", label: "Visible", w: 8, color: null },
     { id: "uv", label: "UV", w: 12, color: "#4c1d95" },
     { id: "xray", label: "X-ray", w: 14, color: "#334155" },
-    { id: "gamma", label: "γ", w: 14, color: "#1f2937" },
+    { id: "gamma", label: "gamma", w: 14, color: "#1f2937" },
   ];
 
   const el = {
